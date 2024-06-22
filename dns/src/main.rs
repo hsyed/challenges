@@ -20,7 +20,7 @@ impl handler {
     }
 
     async fn handle(&self, query: &Message) -> std::io::Result<Message> {
-        self.client.query(query)
+        self.client.query(query).await
     }
 }
 

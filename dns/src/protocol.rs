@@ -1,6 +1,6 @@
 use std::{fmt, io};
 use std::fmt::Formatter;
-use std::io::{Cursor, Read, Write};
+use std::io::{Cursor, Read, Seek, Write};
 use std::io::Result;
 
 pub struct Flags([u8; 2]);
@@ -13,7 +13,7 @@ impl Flags {
     /// QR, query/response flag. When 0, message is a query. When 1, message is response.
     pub fn qr(&self) -> u8 { self.0[0] >> 7 }
     /// Opcode, operation code. Tells receiving machine the intent of the message. Generally 0
-    /// meaning normal query, However there are other valid options such as 1 for reverse query and
+    /// meaning normal query, However, there are other valid options such as 1 for reverse query and
     /// 2 for server status.
     pub fn opcode(&self) -> u8 { (self.0[0] >> 3) & 0x0F }
     /// AA, authoritative answer. Set only when the responding machine is the authoritative name
@@ -102,7 +102,7 @@ struct Question {
 }
 
 impl Question {
-    fn read<R: Read>(r: &mut R) -> Result<Question> {
+    fn read<R: Read + Seek>(r: &mut R) -> Result<Question> {
         Ok(
             Question {
                 qname: read_labels_to_str(r)?,
@@ -136,7 +136,7 @@ pub struct ResourceRecord {
 }
 
 impl ResourceRecord {
-    fn read<R: Read>(r: &mut R) -> Result<ResourceRecord> {
+    fn read<R: Read + Seek>(r: &mut R) -> Result<ResourceRecord> {
         let name = read_labels_to_str(r)?;
         let rtype = read_u16(r)?;
         let rclass = read_u16(r)?;
@@ -156,7 +156,7 @@ impl ResourceRecord {
         )
     }
 
-    fn read_all<R: Read>(r: &mut R, count: u16) -> Result<Vec<ResourceRecord>> {
+    fn read_all<R: Read + Seek>(r: &mut R, count: u16) -> Result<Vec<ResourceRecord>> {
         let mut records = Vec::with_capacity(count as usize);
         for _ in 0..count {
             records.push(ResourceRecord::read(r)?);
@@ -196,23 +196,30 @@ impl Message {
     pub fn from_bytes(b: &[u8]) -> Result<Message> {
         let header = Header::from_bytes(b);
         let mut cur = Cursor::new(b);
-        cur.set_position(12); // TODO consider using a cursor to read the header
+        cur.set_position(12);
+
+        let questions = match header.qdcount {
+            0 => Vec::new(),
+            1 => vec!(Question::read(&mut cur)
+                .expect("could not parse question")),
+            _ => return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "unsupported number of questions")
+            ),
+        };
+
+
+        let answers = ResourceRecord::read_all(&mut cur, header.ancount)?;
+        let authorities = ResourceRecord::read_all(&mut cur, header.nscount)?;
+        let additionals = ResourceRecord::read_all(&mut cur, header.arcount)?;
 
         Ok(
             Message {
-                questions: match header.qdcount {
-                    0 => Vec::new(),
-                    1 => vec!(Question::read(&mut cur)
-                        .expect("could not parse question")),
-                    _ => return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "unsupported number of questions")
-                    ),
-                },
-                answers: ResourceRecord::read_all(&mut cur, header.ancount)?,
-                authorities: ResourceRecord::read_all(&mut cur, header.nscount)?,
-                additionals: ResourceRecord::read_all(&mut cur, header.arcount)?,
                 header,
+                questions,
+                answers,
+                authorities,
+                additionals,
             }
         )
     }
@@ -249,25 +256,58 @@ fn read_u32<R: Read>(r: &mut R) -> Result<u32> {
     Ok(u32::from_be_bytes(buf))
 }
 
-fn read_labels_to_str<R: Read>(r: &mut R) -> Result<String> {
+fn read_labels_to_str<R: Read + Seek>(r: &mut R) -> Result<String> {
     let mut qname = String::new();
     loop {
-        let mut len = [0];
-        r.read_exact(&mut len)?;
-        if len[0] == 0 {
-            break;
+        match LabelKind::read(r)? {
+            LabelKind::Absent => break,
+            LabelKind::Data(len) => {
+                if !qname.is_empty() {
+                    qname.push('.');
+                }
+                let mut label = vec![0; len];
+                r.read_exact(&mut label)?;
+                qname.push_str(
+                    std::str::from_utf8(&label).expect("invalid utf8 label")
+                );
+            }
+            LabelKind::Pointer(offset) => {
+                let pos = r.seek(io::SeekFrom::Current(0))?;
+                r.seek(io::SeekFrom::Start(offset as u64))?;
+                // TODO 1: is the as_str bad ? Can I switch the String used in qname to &str ?
+                // TODO 2: is the recursion here bad ?
+                qname.push_str(read_labels_to_str(r)?.as_str());
+                r.seek(io::SeekFrom::Start(pos))?;
+                break;
+            }
         }
-        if !qname.is_empty() {
-            qname.push('.');
-        }
-        let mut label = vec![0; len[0] as usize];
-        r.read_exact(&mut label)?;
-        qname.push_str(
-            std::str::from_utf8(&label).expect("invalid utf8 label")
-        );
     }
     Ok(qname)
 }
+
+#[derive(Debug)]
+enum LabelKind {
+    Absent,
+    Data(usize),
+    Pointer(u16),
+}
+
+impl LabelKind {
+    fn read<R: Read>(r: &mut R) -> Result<LabelKind> {
+        let mut b0 = [0u8; 1];
+        r.read_exact(&mut b0)?;
+        if b0[0] == 0 {
+            Ok(LabelKind::Absent)
+        } else if b0[0] & 0xC0 == 0xC0 {
+            let mut b1 = [0u8; 1];
+            r.read_exact(&mut b1)?;
+            Ok(LabelKind::Pointer(u16::from_be_bytes([b0[0] & 0x3F, b1[0]])))
+        } else {
+            Ok(LabelKind::Data(b0[0] as usize))
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -277,11 +317,11 @@ mod tests {
     fn smoke_test_serialization() {
         // 0, 0, 41, 16, 0, 0, 0, 0, 0, 0, 0
         // in the sample below the trailing bytes represent the additional section.
-        // signalling EDNS0 support.
+        // signaling EDNS0 support.
         // https://datatracker.ietf.org/doc/html/rfc6891
         // first 0 represents an empty name section (?right)
         // 0, 41 -> 41 is the type OPT
-        // 16, 0 -> 4096 is the requestor's UDP payload size
+        // 16, 0 -> 4096 is the requester's UDP payload size
 
         let sample = [112, 27, 1, 32, 0, 1, 0, 0, 0, 0, 0, 1, 3, 119, 119, 119, 6, 103, 111, 111, 103, 108, 101, 3, 99, 111, 109, 0, 0, 15, 0, 3, 0, 0, 41, 16, 0, 0, 0, 0, 0, 0, 0];
         let message = Message::from_bytes(&sample).unwrap();
@@ -292,5 +332,33 @@ mod tests {
         message.write(&mut bytes).unwrap();
 
         assert_eq!(sample, bytes.as_slice());
+    }
+
+    #[test]
+    fn test_label_parsing_absent() {
+        let mut cursor = Cursor::new(&[0]);
+        let kind = LabelKind::read(&mut cursor);
+        println!("{:?}", kind); // TODO assert
+    }
+
+    #[test]
+    fn test_label_parsing_inline() {
+        let mut cursor = Cursor::new([1]);
+        let kind = LabelKind::read(&mut cursor);
+        println!("{:?}", kind); // TODO assert
+    }
+
+    #[test]
+    fn test_label_parsing() {
+        let sample = [0xC0u8, 0x0C];
+        let mut cursor = Cursor::new(&sample);
+        let kind = LabelKind::read(&mut cursor);
+        println!("{:?}", kind); // TODO assert
+    }
+
+    #[test]
+    fn test_google_response() {
+        let sample = [15, 245, 129, 128, 0, 1, 0, 1, 0, 0, 0, 1, 3, 119, 119, 119, 6, 103, 111, 111, 103, 108, 101, 3, 99, 111, 109, 0, 0, 1, 0, 1, 192, 12, 0, 1, 0, 1, 0, 0, 0, 18, 0, 4, 142, 250, 179, 228, 0, 0, 41, 2, 0, 0, 0, 0, 0, 0, 0];
+        let message = Message::from_bytes(&sample).unwrap();
     }
 }
