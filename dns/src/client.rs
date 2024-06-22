@@ -18,3 +18,13 @@ impl DnsClient {
         todo!("send query to server and return response")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_connect() {
+
+    }
+}

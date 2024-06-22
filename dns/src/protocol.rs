@@ -1,36 +1,81 @@
-use std::io;
+use std::{fmt, io};
+use std::fmt::Formatter;
 use std::io::{Cursor, Read, Write};
 use std::io::Result;
 
+pub struct Flags([u8; 2]);
+
+impl Flags {
+    fn from_bytes(left: u8, right: u8) -> Flags { Flags([left, right]) }
+
+    fn write<W: Write>(&self, writer: &mut W) -> Result<()> { writer.write_all(&self.0) }
+
+    /// QR, query/response flag. When 0, message is a query. When 1, message is response.
+    pub fn qr(&self) -> u8 { self.0[0] >> 7 }
+    /// Opcode, operation code. Tells receiving machine the intent of the message. Generally 0
+    /// meaning normal query, However there are other valid options such as 1 for reverse query and
+    /// 2 for server status.
+    pub fn opcode(&self) -> u8 { (self.0[0] >> 3) & 0x0F }
+    /// AA, authoritative answer. Set only when the responding machine is the authoritative name
+    /// server of the queried domain.
+    pub fn aa(&self) -> u8 { (self.0[0] >> 2) & 0x01 }
+    /// TC, truncated. Set if packet is larger than the UDP maximum size of 512 bytes.
+    pub fn tc(&self) -> u8 { (self.0[0] >> 1) & 0x01 }
+    /// RD, recursion desired. If 0, the query is an iterative query. If 1, the query is recursive.
+    pub fn rd(&self) -> u8 { self.0[0] & 0x01 }
+    /// RA, recursion available. Set on response if the server supports recursion.
+    pub fn ra(&self) -> u8 { self.0[1] >> 7 }
+    /// Z. Reserved for future use, must be set to 0 on all queries and responses.
+    pub fn z(&self) -> u8 { (self.0[1] >> 6) & 0x01 }
+    /// AD, authentic data. Used in DNSSEC. Considered part of Z in older machines.
+    pub fn ad(&self) -> u8 { (self.0[1] >> 5) & 0x01 }
+    /// CD, checking disabled. Used in DNSSEC. Considered part of Z in older machines.
+    pub fn cd(&self) -> u8 { (self.0[1] >> 4) & 0x01 }
+    /// Rcode, return code. It will generally be 0 for no error, or 3 if the name does not exist.
+    pub fn rcode(&self) -> u8 { self.0[1] & 0x0F }
+}
+
+impl fmt::Debug for Flags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Flags")
+            .field("qr", &self.qr())
+            .field("opcode", &self.opcode())
+            .field("aa", &self.aa())
+            .field("tc", &self.tc())
+            .field("rd", &self.rd())
+            .field("ra", &self.ra())
+            .field("z", &self.z())
+            .field("ad", &self.ad())
+            .field("cd", &self.cd())
+            .field("rcode", &self.rcode())
+            .finish()
+    }
+}
+
+// The RFC 1035 is a bit outdated with regards to the flags.
+// This resource seems to be comprehensive: https://www.catchpoint.com/blog/how-dns-works
+// Also check Wireshark.
 #[derive(Debug)]
 struct Header {
-    id: u16,
-    qr: u8,
-    opcode: u8,
-    aa: u8,
-    tc: u8,
-    rd: u8,
-    ra: u8,
-    z: u8,
-    rcode: u8,
-    qdcount: u16,
-    ancount: u16,
-    nscount: u16,
-    arcount: u16,
+    /// ID, a 16-bit identifier assigned by the program that generates any kind of query.
+    pub id: u16,
+    pub flags: Flags,
+    /// QDCount, an unsigned 16-bit integer specifying the number of entries in the question section.
+    pub qdcount: u16,
+    /// ANCount, an unsigned 16-bit integer specifying the number of resource records in the answer.
+    pub ancount: u16,
+    /// NSCount, an unsigned 16-bit integer specifying the number of name server resource records in
+    /// the response.
+    pub nscount: u16,
+    /// ArCount, an unsigned 16-bit integer specifying the number of resource records in the
+    pub arcount: u16,
 }
 
 impl Header {
     fn from_bytes(b: &[u8]) -> Header {
         Header {
             id: u16::from_be_bytes([b[0], b[1]]),
-            qr: b[2] >> 7,
-            opcode: (b[2] >> 3) & 0x0F,
-            aa: (b[2] >> 2) & 0x01,
-            tc: (b[2] >> 1) & 0x01,
-            rd: b[2] & 0x01,
-            ra: b[3] >> 7,
-            z: (b[3] >> 4) & 0x07,
-            rcode: b[3] & 0x0F,
+            flags: Flags::from_bytes(b[2], b[3]),
             qdcount: u16::from_be_bytes([b[4], b[5]]),
             ancount: u16::from_be_bytes([b[6], b[7]]),
             nscount: u16::from_be_bytes([b[8], b[9]]),
@@ -40,8 +85,7 @@ impl Header {
 
     fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&self.id.to_be_bytes())?;
-        writer.write_all(&[(self.qr << 7) | (self.opcode << 3) | (self.aa << 2) | (self.tc << 1) | self.rd])?;
-        writer.write_all(&[(self.ra << 7) | (self.z << 4) | self.rcode])?;
+        self.flags.write(writer)?;
         writer.write_all(&self.qdcount.to_be_bytes())?;
         writer.write_all(&self.ancount.to_be_bytes())?;
         writer.write_all(&self.nscount.to_be_bytes())?;
@@ -52,9 +96,9 @@ impl Header {
 
 #[derive(Debug)]
 struct Question {
-    qname: String,
-    qtype: u16,
-    qclass: u16,
+    pub qname: String,
+    pub qtype: u16,
+    pub qclass: u16,
 }
 
 impl Question {
@@ -121,10 +165,13 @@ impl ResourceRecord {
     }
 
     fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
-        let name = self.name.split('.');
-        for label in name {
-            writer.write_all(&[label.len() as u8])?;
-            writer.write_all(label.as_bytes())?;
+        // do not process empty string as the split will return a single empty string
+        if !self.name.is_empty() {
+            let name = self.name.split('.');
+            for label in name {
+                writer.write_all(&[label.len() as u8])?;
+                writer.write_all(label.as_bytes())?;
+            }
         }
         writer.write_all(&[0])?; // write the null byte
         writer.write_all(&self.rtype.to_be_bytes())?;
@@ -239,9 +286,11 @@ mod tests {
         let sample = [112, 27, 1, 32, 0, 1, 0, 0, 0, 0, 0, 1, 3, 119, 119, 119, 6, 103, 111, 111, 103, 108, 101, 3, 99, 111, 109, 0, 0, 15, 0, 3, 0, 0, 41, 16, 0, 0, 0, 0, 0, 0, 0];
         let message = Message::from_bytes(&sample).unwrap();
 
-        let mut bytes = Vec::new();
         println!("{:?}", message);
+
+        let mut bytes = Vec::new();
         message.write(&mut bytes).unwrap();
-        println!("{:?}", bytes)
+
+        assert_eq!(sample, bytes.as_slice());
     }
 }

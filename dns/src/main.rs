@@ -43,6 +43,10 @@ impl handler {
 //   What should the cache key be ? The question bytes could maybe be used verbatim ?
 #[tokio::main]
 async fn main() {
+    run_async().await
+}
+
+async fn run_async() {
     let handler = &handler::new().await;
 
     let socket = UdpSocket::bind("127.0.0.1:1053").
@@ -70,4 +74,3 @@ async fn main() {
         }
     }
 }
-
