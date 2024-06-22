@@ -1,7 +1,8 @@
 use std::io::Result;
-use tokio::net::UdpSocket;
-use super::protocol::Message;
 
+use tokio::net::UdpSocket;
+
+use super::protocol::Message;
 
 pub struct DnsClient {
     socket: UdpSocket,
@@ -9,22 +10,17 @@ pub struct DnsClient {
 
 impl DnsClient {
     pub async fn connect(addr: &str) -> Result<DnsClient> {
-        // TODO remove the awaits
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect(addr).await?;
         Ok(DnsClient { socket })
     }
 
-    pub async fn query(&self, msg: &Message) -> Result<Message> {
-        // let mut bytes = Vec::new();
-        // msg.write(&mut bytes).unwrap();
-        // self.socket.send(&bytes).await?;
-        // let mut buf = [0; 4096];
-        // let len = self.socket.recv(&mut buf).await?;
-        // println!("{}", len);
-        // println!("{:?}", &buf[..len]);
-        // Message::from_bytes(&buf[..len])
-        todo!("fix")
+    pub async fn query(&self, msg: &Message) -> Result<Box<Message>> {
+        let packet = msg.to_udp_packet()?;
+        self.socket.send(packet.as_slice()).await?;
+        let mut buf = [0; 4096];
+        let len = self.socket.recv(&mut buf).await?;
+        Message::from_bytes(&buf[..len])
     }
 }
 

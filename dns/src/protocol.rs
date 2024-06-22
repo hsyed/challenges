@@ -181,7 +181,7 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn from_bytes(b: &[u8]) -> Result<Message> {
+    pub fn from_bytes(b: &[u8]) -> Result<Box<Message>> {
         let header = Header::from_bytes(b);
         let mut cur = Cursor::new(b);
         cur.set_position(12);
@@ -202,17 +202,23 @@ impl Message {
         let additionals = ResourceRecord::read_all(&mut cur, header.arcount)?;
 
         Ok(
-            Message {
+            Box::new(Message {
                 header,
                 questions,
                 answers,
                 authorities,
                 additionals,
-            }
+            })
         )
     }
 
-    pub fn write<W: MsgWrite>(&self, writer: &mut W) -> Result<()> {
+    pub fn to_udp_packet(&self) -> Result<Vec<u8>> {
+        let mut writer = MessageWriter::new(Vec::new());
+        self.write(&mut writer)?;
+        Ok(writer.underlying)
+    }
+
+    fn write<W: MsgWrite>(&self, writer: &mut W) -> Result<()> {
         self.header.write(writer)?;
         // TODO make conditional a) it being a query (?) and b) if a question is present ? or
         // should this business logic be added to a builder ?
@@ -257,7 +263,7 @@ impl<W: Write> MessageWriter<W> {
         self.pos = 0;
     }
 }
-impl <W: Write> MsgWrite for MessageWriter<W> {
+impl<W: Write> MsgWrite for MessageWriter<W> {
     fn write_name(&mut self, name: &str) -> Result<()> {
         if name.is_empty() {
             self.write_all(&[0])
@@ -278,6 +284,7 @@ impl <W: Write> MsgWrite for MessageWriter<W> {
                         Some((left, rest)) => {
                             self.write_all(&[left.len() as u8])?;
                             self.write_all(left.as_bytes())?;
+                            // TODO lets get rid of the recursion -- rust does not support tailrec.
                             self.write_name(rest)
                         }
                     }
