@@ -1,4 +1,5 @@
 use std::{fmt, io};
+use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::io::{Cursor, Read, Seek, Write};
 use std::io::Result;
@@ -8,7 +9,7 @@ pub struct Flags([u8; 2]);
 impl Flags {
     fn from_bytes(left: u8, right: u8) -> Flags { Flags([left, right]) }
 
-    fn write<W: Write>(&self, writer: &mut W) -> Result<()> { writer.write_all(&self.0) }
+    fn write<W: MsgWrite>(&self, writer: &mut W) -> Result<()> { writer.write_all(&self.0) }
 
     /// QR, query/response flag. When 0, message is a query. When 1, message is response.
     pub fn qr(&self) -> u8 { self.0[0] >> 7 }
@@ -83,7 +84,7 @@ impl Header {
         }
     }
 
-    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn write<W: MsgWrite>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&self.id.to_be_bytes())?;
         self.flags.write(writer)?;
         writer.write_all(&self.qdcount.to_be_bytes())?;
@@ -112,13 +113,8 @@ impl Question {
         )
     }
 
-    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        let qname = self.qname.split('.');
-        for label in qname {
-            writer.write_all(&[label.len() as u8])?;
-            writer.write_all(label.as_bytes())?;
-        }
-        writer.write_all(&[0])?; // write the null byte
+    fn write<W: MsgWrite>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_name(&self.qname)?;
         writer.write_all(&self.qtype.to_be_bytes())?;
         writer.write_all(&self.qclass.to_be_bytes())?;
         Ok(())
@@ -164,16 +160,8 @@ impl ResourceRecord {
         Ok(records)
     }
 
-    fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
-        // do not process empty string as the split will return a single empty string
-        if !self.name.is_empty() {
-            let name = self.name.split('.');
-            for label in name {
-                writer.write_all(&[label.len() as u8])?;
-                writer.write_all(label.as_bytes())?;
-            }
-        }
-        writer.write_all(&[0])?; // write the null byte
+    fn write<W: MsgWrite>(&self, writer: &mut W) -> Result<()> {
+        writer.write_name(&self.name)?;
         writer.write_all(&self.rtype.to_be_bytes())?;
         writer.write_all(&self.rclass.to_be_bytes())?;
         writer.write_all(&self.ttl.to_be_bytes())?;
@@ -224,7 +212,7 @@ impl Message {
         )
     }
 
-    pub fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
+    pub fn write<W: MsgWrite>(&self, writer: &mut W) -> Result<()> {
         self.header.write(writer)?;
         // TODO make conditional a) it being a query (?) and b) if a question is present ? or
         // should this business logic be added to a builder ?
@@ -241,6 +229,80 @@ impl Message {
             additional.write(writer)?;
         }
         Ok(())
+    }
+}
+trait MsgWrite {
+    fn write_name(&mut self, name: &str) -> Result<()>;
+    fn write_all(&mut self, buf: &[u8]) -> Result<()>;
+}
+
+#[derive(Debug)]
+struct MessageWriter<W: Write> {
+    underlying: W,
+    label_tally: HashMap<String, u16>,
+    pos: u16,
+}
+
+impl<W: Write> MessageWriter<W> {
+    fn new(underlying: W) -> MessageWriter<W> {
+        MessageWriter {
+            underlying,
+            label_tally: HashMap::new(),
+            pos: 0,
+        }
+    }
+
+    fn clear(&mut self) {
+        self.label_tally.clear();
+        self.pos = 0;
+    }
+}
+impl <W: Write> MsgWrite for MessageWriter<W> {
+    fn write_name(&mut self, name: &str) -> Result<()> {
+        if name.is_empty() {
+            self.write_all(&[0])
+        } else {
+            match self.label_tally.get(name) {
+                Some(pos) => { // write pointer and terminate
+                    self.write_all(&(pos | 0xC000).to_be_bytes())
+                }
+                None => {
+                    self.label_tally.insert(name.to_string(), self.pos);
+
+                    match name.split_once(".") {
+                        None => {
+                            self.write_all(&[name.len() as u8])?;
+                            self.write_all(name.as_bytes())?;
+                            self.write_all(&[0])
+                        }
+                        Some((left, rest)) => {
+                            self.write_all(&[left.len() as u8])?;
+                            self.write_all(left.as_bytes())?;
+                            self.write_name(rest)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn write_all(&mut self, buf: &[u8]) -> Result<()> {
+        self.underlying.write_all(&buf)?;
+        self.pos += buf.len() as u16;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tracker_tests {
+    use super::*;
+
+    #[test]
+    fn test_message_tracker() {
+        let mut tracker = MessageWriter::new(Vec::new());
+        tracker.write_name("www.google.com").unwrap();
+        tracker.write_name("google.com").unwrap();
+        println!("{:?}", tracker.underlying); // TODO asserts
     }
 }
 
@@ -328,10 +390,10 @@ mod tests {
 
         println!("{:?}", message);
 
-        let mut bytes = Vec::new();
-        message.write(&mut bytes).unwrap();
+        let mut writer = MessageWriter::new(Vec::new());
+        message.write(&mut writer).unwrap();
 
-        assert_eq!(sample, bytes.as_slice());
+        assert_eq!(sample, writer.underlying.as_slice());
     }
 
     #[test]
@@ -360,5 +422,8 @@ mod tests {
     fn test_google_response() {
         let sample = [15, 245, 129, 128, 0, 1, 0, 1, 0, 0, 0, 1, 3, 119, 119, 119, 6, 103, 111, 111, 103, 108, 101, 3, 99, 111, 109, 0, 0, 1, 0, 1, 192, 12, 0, 1, 0, 1, 0, 0, 0, 18, 0, 4, 142, 250, 179, 228, 0, 0, 41, 2, 0, 0, 0, 0, 0, 0, 0];
         let message = Message::from_bytes(&sample).unwrap();
+        let mut writer = MessageWriter::new(Vec::new());
+        message.write(&mut writer).unwrap();
+        assert_eq!(sample, writer.underlying.as_slice());
     }
 }

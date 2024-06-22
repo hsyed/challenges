@@ -16,14 +16,15 @@ impl DnsClient {
     }
 
     pub async fn query(&self, msg: &Message) -> Result<Message> {
-        let mut bytes = Vec::new();
-        msg.write(&mut bytes).unwrap();
-        self.socket.send(&bytes).await?;
-        let mut buf = [0; 4096];
-        let len = self.socket.recv(&mut buf).await?;
-        println!("{}", len);
-        println!("{:?}", &buf[..len]);
-        Message::from_bytes(&buf[..len])
+        // let mut bytes = Vec::new();
+        // msg.write(&mut bytes).unwrap();
+        // self.socket.send(&bytes).await?;
+        // let mut buf = [0; 4096];
+        // let len = self.socket.recv(&mut buf).await?;
+        // println!("{}", len);
+        // println!("{:?}", &buf[..len]);
+        // Message::from_bytes(&buf[..len])
+        todo!("fix")
     }
 }
 
