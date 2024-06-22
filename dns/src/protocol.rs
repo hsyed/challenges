@@ -57,7 +57,7 @@ impl fmt::Debug for Flags {
 // This resource seems to be comprehensive: https://www.catchpoint.com/blog/how-dns-works
 // Also check Wireshark.
 #[derive(Debug)]
-struct Header {
+pub struct Header {
     /// ID, a 16-bit identifier assigned by the program that generates any kind of query.
     pub id: u16,
     pub flags: Flags,
@@ -123,12 +123,12 @@ impl Question {
 
 #[derive(Debug)]
 pub struct ResourceRecord {
-    name: String,
-    rtype: u16,
-    rclass: u16,
-    ttl: u32,
-    rdlength: u16,
-    rdata: Vec<u8>,
+    pub name: String,
+    pub rtype: u16,
+    pub rclass: u16,
+    pub ttl: u32,
+    pub rdlength: u16,
+    pub rdata: Vec<u8>,
 }
 
 impl ResourceRecord {
@@ -173,11 +173,11 @@ impl ResourceRecord {
 
 #[derive(Debug)]
 pub struct Message {
-    header: Header,
-    questions: Vec<Question>,
-    answers: Vec<ResourceRecord>,
-    authorities: Vec<ResourceRecord>,
-    additionals: Vec<ResourceRecord>,
+    pub header: Header,
+    pub questions: Vec<Question>,
+    pub answers: Vec<ResourceRecord>,
+    pub authorities: Vec<ResourceRecord>,
+    pub additionals: Vec<ResourceRecord>,
 }
 
 impl Message {
