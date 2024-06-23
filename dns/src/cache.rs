@@ -43,8 +43,8 @@ impl DnsCache {
         (*cache).get(question).map(|v| {
             let mut answers = v.answers.clone();
             // return a copy of the answers with the TTLs adjusted.
+            let elapsed = v.inserted_at.elapsed().unwrap().as_secs() as u32;
             for rr in &mut answers {
-                let elapsed = v.inserted_at.elapsed().unwrap().as_secs() as u32;
                 rr.ttl = if elapsed < rr.ttl { rr.ttl - elapsed } else { 0 }
             }
             answers
