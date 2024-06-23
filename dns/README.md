@@ -2,6 +2,11 @@
 
 Solution for the [DNS forwarder challenge](https://codingchallenges.fyi/challenges/challenge-dns-forwarder).
 
+## Constraints
+
+* Only support clients advertising EDNS0 support and a UDP payload size of 4096 bytes.
+* Only single question queries are cached / enforce only single question queries.
+
 ## Notes:
 
 * Wireshark is the best resource for DNS packet structure. Alternative [this](https://www.catchpoint.com/blog/how-dns-works) is also good guide.
@@ -14,4 +19,4 @@ Solution for the [DNS forwarder challenge](https://codingchallenges.fyi/challeng
 * Improving error handling in the protocol module. I don't think relevant context is available when packets are malformed.
 * Harden the service against panics on socket breaks -- re-establish connectivity.
 * Consider pooling the `MessageWriter`. It allocates a HashMap tally and is also used with a vector.
-* Support >1 packet dispatch tasks / investigate thread-per-core for this ?
+* Support >1 packet dispatch tasks / investigate thread-per-core for this?

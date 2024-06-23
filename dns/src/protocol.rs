@@ -4,6 +4,7 @@ use std::fmt::Formatter;
 use std::io::{Cursor, Read, Seek, Write};
 use std::io::Result;
 
+#[derive(Clone)]
 pub struct Flags([u8; 2]);
 
 impl Flags {
@@ -13,6 +14,12 @@ impl Flags {
 
     /// QR, query/response flag. When 0, message is a query. When 1, message is response.
     pub fn qr(&self) -> u8 { self.0[0] >> 7 }
+
+    pub fn set_qr(&mut self, qr: u8) {
+        assert!(qr < 2, "qr must be 0 or 1");
+        self.0[0] |= qr << 7;
+    }
+
     /// Opcode, operation code. Tells receiving machine the intent of the message. Generally 0
     /// meaning normal query, However, there are other valid options such as 1 for reverse query and
     /// 2 for server status.
@@ -56,7 +63,7 @@ impl fmt::Debug for Flags {
 // The RFC 1035 is a bit outdated with regards to the flags.
 // This resource seems to be comprehensive: https://www.catchpoint.com/blog/how-dns-works
 // Also check Wireshark.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Header {
     /// ID, a 16-bit identifier assigned by the program that generates any kind of query.
     pub id: u16,
@@ -95,7 +102,7 @@ impl Header {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub struct Question {
     pub qname: String,
     pub qtype: u16,
@@ -121,7 +128,7 @@ impl Question {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ResourceRecord {
     pub name: String,
     pub rtype: u16,
@@ -171,7 +178,7 @@ impl ResourceRecord {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Message {
     pub header: Header,
     pub questions: Vec<Question>,
