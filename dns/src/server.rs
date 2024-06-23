@@ -15,6 +15,8 @@ struct DnsClient {
 impl DnsClient {
     pub async fn connect(addr: &str) -> Result<DnsClient> {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
+        // TODO this is likely a bug!!!. The ephemeral sockets need to be pooled or multiplexing is
+        // needed ?
         socket.connect(addr).await?;
         Ok(DnsClient { socket })
     }
