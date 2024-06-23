@@ -96,7 +96,7 @@ impl Header {
 }
 
 #[derive(Debug)]
-struct Question {
+pub struct Question {
     pub qname: String,
     pub qtype: u16,
     pub qclass: u16,
@@ -257,11 +257,6 @@ impl<W: Write> MessageWriter<W> {
             pos: 0,
         }
     }
-
-    fn clear(&mut self) {
-        self.label_tally.clear();
-        self.pos = 0;
-    }
 }
 impl<W: Write> MsgWrite for MessageWriter<W> {
     fn write_name(&mut self, name: &str) -> Result<()> {
@@ -297,19 +292,6 @@ impl<W: Write> MsgWrite for MessageWriter<W> {
         self.underlying.write_all(&buf)?;
         self.pos += buf.len() as u16;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tracker_tests {
-    use super::*;
-
-    #[test]
-    fn test_message_tracker() {
-        let mut tracker = MessageWriter::new(Vec::new());
-        tracker.write_name("www.google.com").unwrap();
-        tracker.write_name("google.com").unwrap();
-        println!("{:?}", tracker.underlying); // TODO asserts
     }
 }
 
@@ -355,6 +337,7 @@ fn read_labels_to_str<R: Read + Seek>(r: &mut R) -> Result<String> {
 }
 
 #[derive(Debug)]
+#[derive(PartialEq)]
 enum LabelKind {
     Absent,
     Data(usize),
@@ -383,54 +366,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn smoke_test_serialization() {
-        // 0, 0, 41, 16, 0, 0, 0, 0, 0, 0, 0
-        // in the sample below the trailing bytes represent the additional section.
-        // signaling EDNS0 support.
-        // https://datatracker.ietf.org/doc/html/rfc6891
-        // first 0 represents an empty name section (?right)
-        // 0, 41 -> 41 is the type OPT
-        // 16, 0 -> 4096 is the requester's UDP payload size
-
+    fn message_query_roundtrip() {
         let sample = [112, 27, 1, 32, 0, 1, 0, 0, 0, 0, 0, 1, 3, 119, 119, 119, 6, 103, 111, 111, 103, 108, 101, 3, 99, 111, 109, 0, 0, 15, 0, 3, 0, 0, 41, 16, 0, 0, 0, 0, 0, 0, 0];
         let message = Message::from_bytes(&sample).unwrap();
-
-        println!("{:?}", message);
-
-        let mut writer = MessageWriter::new(Vec::new());
-        message.write(&mut writer).unwrap();
-
-        assert_eq!(sample, writer.underlying.as_slice());
+        assert_eq!(sample, message.to_udp_packet().unwrap().as_slice());
     }
 
     #[test]
-    fn test_label_parsing_absent() {
-        let mut cursor = Cursor::new(&[0]);
-        let kind = LabelKind::read(&mut cursor);
-        println!("{:?}", kind); // TODO assert
-    }
-
-    #[test]
-    fn test_label_parsing_inline() {
-        let mut cursor = Cursor::new([1]);
-        let kind = LabelKind::read(&mut cursor);
-        println!("{:?}", kind); // TODO assert
-    }
-
-    #[test]
-    fn test_label_parsing() {
-        let sample = [0xC0u8, 0x0C];
-        let mut cursor = Cursor::new(&sample);
-        let kind = LabelKind::read(&mut cursor);
-        println!("{:?}", kind); // TODO assert
-    }
-
-    #[test]
-    fn test_google_response() {
+    fn message_google_response_roundtrip() {
         let sample = [15, 245, 129, 128, 0, 1, 0, 1, 0, 0, 0, 1, 3, 119, 119, 119, 6, 103, 111, 111, 103, 108, 101, 3, 99, 111, 109, 0, 0, 1, 0, 1, 192, 12, 0, 1, 0, 1, 0, 0, 0, 18, 0, 4, 142, 250, 179, 228, 0, 0, 41, 2, 0, 0, 0, 0, 0, 0, 0];
         let message = Message::from_bytes(&sample).unwrap();
-        let mut writer = MessageWriter::new(Vec::new());
-        message.write(&mut writer).unwrap();
-        assert_eq!(sample, writer.underlying.as_slice());
+        assert_eq!(sample, message.to_udp_packet().unwrap().as_slice());
+    }
+
+    #[test]
+    fn labelkind_parsing() -> Result<()> {
+        assert_eq!(LabelKind::read(&mut Cursor::new(&[0]))?, LabelKind::Absent);
+        assert_eq!(LabelKind::read(&mut Cursor::new(&[1]))?, LabelKind::Data(1));
+        assert_eq!(LabelKind::read(&mut Cursor::new(&[0xC0u8, 0x0C]))?, LabelKind::Pointer(12));
+        Ok(())
+    }
+
+    #[test]
+    fn message_tracker() {
+        let mut tracker = MessageWriter::new(Vec::new());
+        tracker.write_name("www.google.com").unwrap();
+        tracker.write_name("google.com").unwrap();
+        println!("{:?}", tracker.underlying); // TODO asserts
     }
 }

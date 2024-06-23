@@ -73,7 +73,7 @@ impl Processor {
             let mut buf = [0; 4096];
             match self.ctx.socket.recv_from(&mut buf).await {
                 Ok((amt, src)) =>
-                    self.handle_packet(&buf, src),
+                    self.handle_packet(&buf[..amt], src),
                 Err(e) => {
                     eprintln!("couldn't receive a datagram: {}", e); // TODO: where does eprintln send this ?
                 }
@@ -81,7 +81,7 @@ impl Processor {
         }
     }
 
-    fn handle_packet(&self, buf: &[u8; 4096], src: SocketAddr) {
+    fn handle_packet(&self, buf: &[u8], src: SocketAddr) {
         // println!("Data: {:?}", &buf[..amt]);
         // println!("Received {} bytes from {}", amt, src);
         match Message::from_bytes(buf) {
