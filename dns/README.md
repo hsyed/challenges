@@ -12,4 +12,5 @@ Solution for the [DNS forwarder challenge](https://codingchallenges.fyi/challeng
 * Caching: supporting code is written, seems uninteresting for now.
 * Return error packets to the client for IO errors, currently swallowed.
 * Improving error handling in the protocol module. I don't think relevant context is available when packets are malformed.
-* Harden the service against panics on socket breaks -- re-establish connectivity. 
+* Harden the service against panics on socket breaks -- re-establish connectivity.
+* Consider pooling the `MessageWriter`. It allocates a HashMap tally and is also used with a vector.
