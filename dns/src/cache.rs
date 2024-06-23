@@ -40,13 +40,15 @@ impl DnsCache {
 
     pub async fn get(&self, question: &Question) -> Option<Vec<ResourceRecord>> {
         let cache = self.cache.read().await;
-        (*cache).get(question).map( |v| {
+        (*cache).get(question).map(|v| {
             let mut answers = v.answers.clone();
             // return a copy of the answers with the TTLs adjusted.
             for rr in &mut answers {
-                rr.ttl -= v.inserted_at.elapsed().unwrap().as_secs() as u32;
-                if rr.ttl < 0 {
+                let elapsed = v.inserted_at.elapsed().unwrap().as_secs() as u32;
+                if elapsed > rr.ttl {
                     rr.ttl = 0;
+                } else {
+                    rr.ttl -= elapsed
                 }
             }
             answers
