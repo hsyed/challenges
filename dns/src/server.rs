@@ -75,6 +75,8 @@ impl Processor {
                 Ok((amt, src)) =>
                     self.handle_packet(&buf[..amt], src),
                 Err(e) => {
+                    // TODO this should probably take down the server or a watchdog should be
+                    // trying to re-establish the socket ?
                     eprintln!("couldn't receive a datagram: {}", e); // TODO: where does eprintln send this ?
                 }
             }
