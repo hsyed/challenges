@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::net::UdpSocket;
 
 use super::protocol::Message;
-use super::cache::{DnsCache, DnsCacheValue};
+use super::cache::{DnsCache};
 
 ///. DnsClient is a simple DNS client that sends a query to a DNS server and waits for a response.
 struct DnsClient {
@@ -112,18 +112,18 @@ impl Processor {
         // Todo add cache hit/miss metrics
         println!("Query: {:?}", query);
         if query.questions.len() == 1 {
-            if let Some(val) = ctx.cache.get(&query.questions[0]).await {
+            if let Some(answers) = ctx.cache.get(&query.questions[0]).await {
                 println!("from cache");
                 let mut response = query.clone();
                 response.header.flags.set_qr(1);
-                response.header.ancount = val.answers.len() as u16;
-                response.answers = val.answers.clone();
+                response.header.ancount = answers.len() as u16;
+                response.answers = answers.clone();
                 ctx.socket.send_to(response.to_udp_packet().unwrap().as_slice(), &src)
                     .await.unwrap();
                 return
             } else {
                 let res = ctx.client.query(&query).await.unwrap();
-                ctx.cache.set(&query.questions[0], DnsCacheValue { answers: res.answers.clone() }).await;
+                ctx.cache.set(&query.questions[0],  &res.answers).await;
                 ctx.socket.send_to(res.to_udp_packet().unwrap().as_slice(), &src)
                     .await.unwrap();
                 return

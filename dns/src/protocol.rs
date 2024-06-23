@@ -17,7 +17,7 @@ impl Flags {
 
     pub fn set_qr(&mut self, qr: u8) {
         assert!(qr < 2, "qr must be 0 or 1");
-        self.0[0] |= qr << 7;
+        self.0[0] &= qr << 7;
     }
 
     /// Opcode, operation code. Tells receiving machine the intent of the message. Generally 0

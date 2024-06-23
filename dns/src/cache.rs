@@ -1,5 +1,4 @@
-use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use cached::stores::ExpiringSizedCache;
 use tokio::sync::RwLock;
@@ -9,27 +8,28 @@ use crate::protocol::{Question, ResourceRecord};
 // The max TTL seconds allowed by the cache.
 const MAX_TTL_SECONDS: u32 = 180;
 
-pub struct DnsCacheValue {
-    pub answers: Vec<ResourceRecord>,
+struct DnsCacheValue {
+    answers: Vec<ResourceRecord>,
+    inserted_at: SystemTime,
 }
 
-impl DnsCacheValue {
-    fn min_ttl(&self) -> Option<u64> {
-        self.answers.iter()
-            .min_by_key(|rr| rr.ttl)
-            // If the TTL is greater than the max TTL allowed by the cache, use the max TTL.
-            .map(|k| if k.ttl > MAX_TTL_SECONDS { MAX_TTL_SECONDS } else { k.ttl })
-            .map(|ttl| Duration::from_secs(ttl as u64).as_millis() as u64)
-    }
+
+fn min_ttl(rr: &Vec<ResourceRecord>) -> Option<u64> {
+    rr.iter()
+        .min_by_key(|rr| rr.ttl)
+        // If the TTL is greater than the max TTL allowed by the cache, use the max TTL.
+        .map(|k| if k.ttl > MAX_TTL_SECONDS { MAX_TTL_SECONDS } else { k.ttl })
+        .map(|ttl| Duration::from_secs(ttl as u64).as_millis() as u64)
 }
+
 
 pub struct DnsCache {
-    cache: RwLock<ExpiringSizedCache<Question, Arc<DnsCacheValue>>>,
+    cache: RwLock<ExpiringSizedCache<Question, DnsCacheValue>>,
 }
 
 
 impl DnsCache {
-    // TODO consider upper bound on size to add LRU mechanics since the MAX_TTL is 24h
+    // TODO consider upper bound on size
     pub fn new() -> DnsCache {
         DnsCache {
             cache: RwLock::new(ExpiringSizedCache::new(
@@ -38,15 +38,30 @@ impl DnsCache {
         }
     }
 
-    pub async fn get(&self, question: &Question) -> Option<Arc<DnsCacheValue>> {
+    pub async fn get(&self, question: &Question) -> Option<Vec<ResourceRecord>> {
         let cache = self.cache.read().await;
-        (*cache).get(question).map(|v| v.clone())
+        (*cache).get(question).map( |v| {
+            let mut answers = v.answers.clone();
+            // return a copy of the answers with the TTLs adjusted.
+            for rr in &mut answers {
+                rr.ttl -= v.inserted_at.elapsed().unwrap().as_secs() as u32;
+                if rr.ttl < 0 {
+                    rr.ttl = 0;
+                }
+            }
+            answers
+        })
     }
 
-    pub async fn set(&self, question: &Question, val: DnsCacheValue) {
-        if let Some(ttl) = val.min_ttl() {
+    pub async fn set(&self, question: &Question, answers: &Vec<ResourceRecord>) {
+        if let Some(ttl) = min_ttl(answers) {
             let mut cache = self.cache.write().await;
-            (*cache).insert_ttl((*question).clone(), Arc::new(val), ttl).expect("could not set key");
+            (*cache).insert_ttl(
+                (*question).clone(),
+                DnsCacheValue {
+                    answers: answers.clone(),
+                    inserted_at: SystemTime::now(),
+                }, ttl).expect("could not set key");
         }
     }
 }
