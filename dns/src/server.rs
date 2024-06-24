@@ -106,7 +106,8 @@ impl Processor {
                 let _ = ctx.socket.send_to(packet.as_slice(), &src).await; // TODO handle error
                 return
             }
-            Err(_) => {
+            Err(e) => {
+                eprintln!("{}", e);
                 let mut response = query.clone();
                 response.header.flags.set_qr(1);
                 response.header.flags.set_rcode(2); // Server failure

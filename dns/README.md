@@ -14,8 +14,7 @@ Solution for the [DNS forwarder challenge](https://codingchallenges.fyi/challeng
 
 ## Todo:
 
-* Return error packets to the client for IO errors, currently swallowed.
+* Return error packets to the client for IO errors in all cases
 * Improving error handling in the protocol module. I don't think relevant context is available when packets are malformed.
-* Harden the service against panics on socket breaks -- re-establish connectivity.
 * Consider pooling the `MessageWriter`. It allocates a HashMap tally and is also used with a vector.
 * Support >1 packet dispatch tasks / investigate thread-per-core for this?

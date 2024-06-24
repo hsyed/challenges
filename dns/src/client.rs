@@ -44,6 +44,7 @@ impl Slots {
 
 struct Channel {
     socket: UdpSocket,
+    addr: String,
     slots: Mutex<Slots>,
 }
 
@@ -56,12 +57,11 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl DnsClient {
     pub async fn connect(addr: &str) -> Result<DnsClient> {
-        // TODO connecting the socket on startup eagerly is not ideal.
-        let socket = UdpSocket::bind("0.0.0.0:0").await?;
-        socket.connect(addr).await?;
+        let socket = UdpSocket::bind("0.0.0.0:0").await.expect("couldn't bind");
 
         let st = Arc::new(Channel {
             socket,
+            addr: String::from(addr),
             slots: Mutex::new(Slots {
                 pending: HashMap::new(),
                 counter: 0,
@@ -94,7 +94,7 @@ impl DnsClient {
     pub async fn query(&self, msg: &Message) -> Result<Message> {
         let (client_id, rx) = self.st.slots.lock().await.create(msg.header.id);
         let packet = msg.to_udp_packet(Some(client_id)).unwrap();
-        if let Err(e) = self.st.socket.send(packet.as_slice()).await {
+        if let Err(e) = self.st.socket.send_to(packet.as_slice(), &self.st.addr).await {
             self.st.slots.lock().await.remove(client_id);
             return Err(e);
         }
