@@ -6,7 +6,7 @@ use tokio::net::UdpSocket;
 use crate::client::DnsClient;
 
 use super::cache::DnsCache;
-use super::protocol::Message;
+use super::protocol::{Message, ResourceRecord};
 
 /// Context is a struct that holds the processing state of the Processor.
 struct Context {
@@ -75,12 +75,7 @@ impl Processor {
         println!("Query: {:?}", query);
         if query.questions.len() == 1 {
             if let Some(answers) = ctx.cache.get(&query.questions[0]).await {
-                println!("from cache");
-                let mut response = query.clone();
-                response.header.flags.set_qr(1);
-                response.header.ancount = answers.len() as u16;
-                response.answers = answers.clone();
-                let _ = ctx.socket.send_to(response.to_udp_packet(None).unwrap().as_slice(), &src).await;
+                Self::respond_from_cache(&src, query, ctx, answers).await;
                 return;
             } else {
                 Self::do_query(src, query, ctx, true).await;
@@ -90,6 +85,15 @@ impl Processor {
             Self::do_query(src, query, ctx, false).await;
             return;
         }
+    }
+
+    async fn respond_from_cache(src: &SocketAddr, query: &Message, ctx: &Arc<Context>, answers: Vec<ResourceRecord>) {
+        println!("from cache");
+        let mut response = query.clone();
+        response.header.flags.set_qr(1);
+        response.header.ancount = answers.len() as u16;
+        response.answers = answers.clone();
+        let _ = ctx.socket.send_to(response.to_udp_packet(None).unwrap().as_slice(), &src).await;
     }
 
     async fn do_query(src: &SocketAddr, query: &Message, ctx: &Arc<Context>, set_cache: bool) {

@@ -8,7 +8,7 @@ use tokio::sync::{Mutex, oneshot};
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
 
-use crate::protocol::Message;
+use super::protocol::Message;
 
 /// Slots tracks that state to support de-multiplexing responses.
 struct Slots {

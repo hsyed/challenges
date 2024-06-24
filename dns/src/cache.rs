@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime};
 use cached::stores::ExpiringSizedCache;
 use tokio::sync::RwLock;
 
-use crate::protocol::{Question, ResourceRecord};
+use super::protocol::{Question, ResourceRecord};
 
 // TODO consider capping the the upper bound of cached ttl to MAX_TTL_SECONDS ?
 
