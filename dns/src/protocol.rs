@@ -96,7 +96,7 @@ impl Header {
     }
 
     fn write<W: MsgWrite>(&self, writer: &mut W, alt_id: Option<u16>) -> io::Result<()> {
-        let id_to_write: u16 = if let Some(id) = alt_id { id }  else { self.id };
+        let id_to_write: u16 = if let Some(id) = alt_id { id } else { self.id };
         writer.write_all(&id_to_write.to_be_bytes())?;
         self.flags.write(writer)?;
         writer.write_all(&self.qdcount.to_be_bytes())?;
@@ -193,7 +193,7 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn from_bytes(b: &[u8]) -> Result<Box<Message>> {
+    pub fn from_bytes(b: &[u8]) -> Result<Message> {
         let header = Header::from_bytes(b);
         let mut cur = Cursor::new(b);
         cur.set_position(12);
@@ -214,13 +214,13 @@ impl Message {
         let additionals = ResourceRecord::read_all(&mut cur, header.arcount)?;
 
         Ok(
-            Box::new(Message {
+            Message {
                 header,
                 questions,
                 answers,
                 authorities,
                 additionals,
-            })
+            }
         )
     }
 
@@ -229,7 +229,6 @@ impl Message {
         self.write(&mut writer, alt_id)?;
         Ok(writer.underlying)
     }
-
 
 
     fn write<W: MsgWrite>(&self, writer: &mut W, alt_id: Option<u16>) -> Result<()> {
@@ -251,6 +250,7 @@ impl Message {
         Ok(())
     }
 }
+
 trait MsgWrite {
     fn write_name(&mut self, name: &str) -> Result<()>;
     fn write_all(&mut self, buf: &[u8]) -> Result<()>;
@@ -272,6 +272,7 @@ impl<W: Write> MessageWriter<W> {
         }
     }
 }
+
 impl<W: Write> MsgWrite for MessageWriter<W> {
     fn write_name(&mut self, name: &str) -> Result<()> {
         if name.is_empty() {

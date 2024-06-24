@@ -8,17 +8,17 @@ use crate::client::DnsClient;
 use super::cache::DnsCache;
 use super::protocol::Message;
 
-/// Processor is the main struct that listens for incoming DNS queries and forwards them to a
-/// DNS server.
-pub struct Processor {
-    ctx: Arc<Context>,
-}
-
 /// Context is a struct that holds the processing state of the Processor.
 struct Context {
     socket: UdpSocket,
     client: DnsClient,
     cache: DnsCache,
+}
+
+/// Processor is the main struct that listens for incoming DNS queries and forwards them to a
+/// DNS server.
+pub struct Processor {
+    ctx: Arc<Context>,
 }
 
 impl Processor {
@@ -69,9 +69,8 @@ impl Processor {
         };
     }
 
-    async fn handle_query(src: &SocketAddr, query: &Box<Message>, ctx: &Arc<Context>) {
+    async fn handle_query(src: &SocketAddr, query: &Message, ctx: &Arc<Context>) {
         // Todo validate the query
-        // Todo return error to client
         // Todo add cache hit/miss metrics
         println!("Query: {:?}", query);
         if query.questions.len() == 1 {
@@ -84,27 +83,33 @@ impl Processor {
                 let _ = ctx.socket.send_to(response.to_udp_packet(None).unwrap().as_slice(), &src).await;
                 return;
             } else {
-                match ctx.client.query(query).await {
-                    Ok(res) => {
-                        ctx.cache.set(&query.questions[0], &res.answers).await;
-                        let packet = res.to_udp_packet(None).unwrap();
-                        let _ = ctx.socket.send_to(packet.as_slice(), &src).await; // TODO handle error
-                        return;
-                    }
-                    Err(_) => {
-                        let mut response = query.clone();
-                        response.header.flags.set_qr(1);
-                        response.header.flags.set_rcode(2); // Server failure
-                        let packet = response.to_udp_packet(None).unwrap();
-                        let _ = ctx.socket.send_to(packet.as_slice(), &src).await;
-                    }
-                }
+                Self::do_query(src, query, ctx, true).await;
+                return
             }
         } else { // more than one question -- we just pass that through
-            let res = ctx.client.query(query).await.unwrap();
-            ctx.socket.send_to(res.to_udp_packet(None).unwrap().as_slice(), &src)
-                .await.unwrap();
+            Self::do_query(src, query, ctx, false).await;
             return;
+        }
+    }
+
+    async fn do_query(src: &SocketAddr, query: &Message, ctx: &Arc<Context>, set_cache: bool) {
+        match ctx.client.query(query).await {
+            Ok(res) => {
+                if set_cache {
+                    ctx.cache.set(&query.questions[0], &res.answers).await;
+                }
+                let packet = res.to_udp_packet(None).unwrap();
+                let _ = ctx.socket.send_to(packet.as_slice(), &src).await; // TODO handle error
+                return
+            }
+            Err(_) => {
+                let mut response = query.clone();
+                response.header.flags.set_qr(1);
+                response.header.flags.set_rcode(2); // Server failure
+                let packet = response.to_udp_packet(None).unwrap();
+                let _ = ctx.socket.send_to(packet.as_slice(), &src).await;
+                return
+            }
         }
     }
 }

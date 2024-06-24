@@ -12,7 +12,7 @@ use crate::protocol::Message;
 
 /// Slots tracks that state to support de-multiplexing responses.
 struct Slots {
-    pending: HashMap<u16, (u16, oneshot::Sender<Result<Box<Message>>>)>,
+    pending: HashMap<u16, (u16, oneshot::Sender<Result<Message>>)>,
     counter: u16,
 }
 
@@ -24,7 +24,7 @@ impl Slots {
         }
     }
 
-    fn create(&mut self, orig_id: u16) -> (u16, oneshot::Receiver<Result<Box<Message>>>) {
+    fn create(&mut self, orig_id: u16) -> (u16, oneshot::Receiver<Result<Message>>) {
         let (tx, rx) = oneshot::channel();
         // find a free key
         self.counter = self.counter.wrapping_add(1);
@@ -37,7 +37,7 @@ impl Slots {
         (client_id, rx)
     }
 
-    fn remove(&mut self, id: u16) -> Option<(u16, oneshot::Sender<Result<Box<Message>>>)> {
+    fn remove(&mut self, id: u16) -> Option<(u16, oneshot::Sender<Result<Message>>)> {
         self.pending.remove(&id)
     }
 }
@@ -77,7 +77,7 @@ impl DnsClient {
         tokio::spawn(async move {
             let mut buf = [0; 4096];
             loop {
-                // TODO harden this call for recovery
+                // TODO harden this call for recovery of the loop
                 let (len, _) = st.socket.recv_from(&mut buf).await.unwrap();
                 let mut msg = Message::from_bytes(&buf[..len]).unwrap();
                 if let Some((orig_id, tx)) = st.slots.lock().await.remove(msg.header.id) {
@@ -91,8 +91,7 @@ impl DnsClient {
         })
     }
 
-    // TODO when is this a reference to a box ? ?
-    pub async fn query(&self, msg: &Box<Message>) -> Result<Box<Message>> {
+    pub async fn query(&self, msg: &Message) -> Result<Message> {
         let (client_id, rx) = self.st.slots.lock().await.create(msg.header.id);
         let packet = msg.to_udp_packet(Some(client_id)).unwrap();
         if let Err(e) = self.st.socket.send(packet.as_slice()).await {

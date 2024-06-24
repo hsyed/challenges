@@ -5,8 +5,10 @@ use tokio::sync::RwLock;
 
 use crate::protocol::{Question, ResourceRecord};
 
+// TODO consider capping the the upper bound of cached ttl to MAX_TTL_SECONDS ?
+
 // The max TTL seconds allowed by the cache.
-const MAX_TTL_SECONDS: u32 = 180;
+const MAX_TTL_SECONDS: u32 = 1800; // 30 minutes
 
 struct DnsCacheValue {
     answers: Vec<ResourceRecord>,
@@ -40,7 +42,7 @@ impl DnsCache {
 
     pub async fn get(&self, question: &Question) -> Option<Vec<ResourceRecord>> {
         let cache = self.cache.read().await;
-        (*cache).get(question).map(|v| {
+        cache.get(question).map(|v| {
             let mut answers = v.answers.clone();
             // return a copy of the answers with the TTLs adjusted.
             let elapsed = v.inserted_at.elapsed().unwrap().as_secs() as u32;
@@ -54,8 +56,8 @@ impl DnsCache {
     pub async fn set(&self, question: &Question, answers: &Vec<ResourceRecord>) {
         if let Some(ttl) = min_ttl(answers) {
             let mut cache = self.cache.write().await;
-            (*cache).insert_ttl(
-                (*question).clone(),
+            cache.insert_ttl(
+                question.clone(),
                 DnsCacheValue {
                     answers: answers.clone(),
                     inserted_at: SystemTime::now(),
