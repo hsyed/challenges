@@ -17,7 +17,7 @@ impl Flags {
 
     pub fn set_qr(&mut self, qr: u8) {
         assert!(qr < 2, "qr must be 0 or 1");
-        self.0[0] &= qr << 7;
+        self.0[0] = (self.0[0] & 0x7F) | (qr << 7);
     }
 
     /// Opcode, operation code. Tells receiving machine the intent of the message. Generally 0
@@ -41,6 +41,10 @@ impl Flags {
     pub fn cd(&self) -> u8 { (self.0[1] >> 4) & 0x01 }
     /// Rcode, return code. It will generally be 0 for no error, or 3 if the name does not exist.
     pub fn rcode(&self) -> u8 { self.0[1] & 0x0F }
+    pub fn set_rcode(&mut self, rcode: u8) {
+        assert!(rcode < 16, "rcode must be less than 16");
+        self.0[1] = (self.0[1] & 0xF0) | rcode;
+    }
 }
 
 impl fmt::Debug for Flags {
@@ -379,14 +383,14 @@ mod tests {
     fn message_query_roundtrip() {
         let sample = [112, 27, 1, 32, 0, 1, 0, 0, 0, 0, 0, 1, 3, 119, 119, 119, 6, 103, 111, 111, 103, 108, 101, 3, 99, 111, 109, 0, 0, 15, 0, 3, 0, 0, 41, 16, 0, 0, 0, 0, 0, 0, 0];
         let message = Message::from_bytes(&sample).unwrap();
-        assert_eq!(sample, message.to_udp_packet().unwrap().as_slice());
+        assert_eq!(sample, message.to_udp_packet(None).unwrap().as_slice());
     }
 
     #[test]
     fn message_google_response_roundtrip() {
         let sample = [15, 245, 129, 128, 0, 1, 0, 1, 0, 0, 0, 1, 3, 119, 119, 119, 6, 103, 111, 111, 103, 108, 101, 3, 99, 111, 109, 0, 0, 1, 0, 1, 192, 12, 0, 1, 0, 1, 0, 0, 0, 18, 0, 4, 142, 250, 179, 228, 0, 0, 41, 2, 0, 0, 0, 0, 0, 0, 0];
         let message = Message::from_bytes(&sample).unwrap();
-        assert_eq!(sample, message.to_udp_packet().unwrap().as_slice());
+        assert_eq!(sample, message.to_udp_packet(None).unwrap().as_slice());
     }
 
     #[test]
@@ -395,6 +399,15 @@ mod tests {
         assert_eq!(LabelKind::read(&mut Cursor::new(&[1]))?, LabelKind::Data(1));
         assert_eq!(LabelKind::read(&mut Cursor::new(&[0xC0u8, 0x0C]))?, LabelKind::Pointer(12));
         Ok(())
+    }
+
+    #[test]
+    fn set_qr() {
+        let sample = [112, 27, 1, 32, 0, 1, 0, 0, 0, 0, 0, 1, 3, 119, 119, 119, 6, 103, 111, 111, 103, 108, 101, 3, 99, 111, 109, 0, 0, 15, 0, 3, 0, 0, 41, 16, 0, 0, 0, 0, 0, 0, 0];
+        let mut message = Message::from_bytes(&sample).unwrap();
+        assert_eq!(0, message.header.flags.qr());
+        message.header.flags.set_qr(1);
+        assert_eq!(1, message.header.flags.qr());
     }
 
     #[test]

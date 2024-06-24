@@ -81,15 +81,24 @@ impl Processor {
                 response.header.flags.set_qr(1);
                 response.header.ancount = answers.len() as u16;
                 response.answers = answers.clone();
-                ctx.socket.send_to(response.to_udp_packet(None).unwrap().as_slice(), &src)
-                    .await.unwrap();
+                let _ = ctx.socket.send_to(response.to_udp_packet(None).unwrap().as_slice(), &src).await;
                 return;
             } else {
-                let res = ctx.client.query(query).await.unwrap(); // TODO must handle error here
-                ctx.cache.set(&query.questions[0], &res.answers).await;
-                ctx.socket.send_to(res.to_udp_packet(None).unwrap().as_slice(), &src)
-                    .await.unwrap();
-                return;
+                match ctx.client.query(query).await {
+                    Ok(res) => {
+                        ctx.cache.set(&query.questions[0], &res.answers).await;
+                        let packet = res.to_udp_packet(None).unwrap();
+                        let _ = ctx.socket.send_to(packet.as_slice(), &src).await; // TODO handle error
+                        return;
+                    }
+                    Err(_) => {
+                        let mut response = query.clone();
+                        response.header.flags.set_qr(1);
+                        response.header.flags.set_rcode(2); // Server failure
+                        let packet = response.to_udp_packet(None).unwrap();
+                        let _ = ctx.socket.send_to(packet.as_slice(), &src).await;
+                    }
+                }
             }
         } else { // more than one question -- we just pass that through
             let res = ctx.client.query(query).await.unwrap();

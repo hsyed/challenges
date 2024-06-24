@@ -56,6 +56,7 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl DnsClient {
     pub async fn connect(addr: &str) -> Result<DnsClient> {
+        // TODO connecting the socket on startup eagerly is not ideal.
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect(addr).await?;
 
