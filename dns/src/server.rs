@@ -69,7 +69,7 @@ impl Processor {
         };
     }
 
-    async fn handle_query(src: &SocketAddr, query: &Message, ctx: &Arc<Context>) {
+    async fn handle_query(src: &SocketAddr, query: &Message, ctx: &Context) {
         // Todo validate the query
         // Todo add cache hit/miss metrics
         println!("Query: {:?}", query);
@@ -87,7 +87,7 @@ impl Processor {
         }
     }
 
-    async fn respond_from_cache(src: &SocketAddr, query: &Message, ctx: &Arc<Context>, answers: Vec<ResourceRecord>) {
+    async fn respond_from_cache(src: &SocketAddr, query: &Message, ctx: &Context, answers: Vec<ResourceRecord>) {
         println!("from cache");
         let mut response = query.clone();
         response.header.flags.set_qr(1);
@@ -96,7 +96,7 @@ impl Processor {
         let _ = ctx.socket.send_to(response.to_udp_packet(None).unwrap().as_slice(), &src).await;
     }
 
-    async fn do_query(src: &SocketAddr, query: &Message, ctx: &Arc<Context>, set_cache: bool) {
+    async fn do_query(src: &SocketAddr, query: &Message, ctx: &Context, set_cache: bool) {
         match ctx.client.query(query).await {
             Ok(res) => {
                 if set_cache {
