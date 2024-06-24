@@ -1,9 +1,11 @@
-use std::sync::Arc;
 use std::collections::HashMap;
-use tokio::sync::{Mutex, oneshot};
 use std::io;
+use std::sync::Arc;
+
 use tokio::net::UdpSocket;
+use tokio::sync::{Mutex, oneshot};
 use tokio::task::JoinHandle;
+
 use crate::protocol::Message;
 
 /// Slots tracks that state to support de-multiplexing responses.
