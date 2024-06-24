@@ -93,28 +93,25 @@ impl DnsClient {
     // TODO when is this a reference to a box ? ?
     pub async fn query(&self, msg: &Box<Message>) -> Result<Box<Message>> {
         let (client_id, rx) = self.st.slots.lock().await.create(msg.header.id);
-
-
         let packet = msg.to_udp_packet(Some(client_id)).unwrap();
         if let Err(e) = self.st.socket.send(packet.as_slice()).await {
             self.st.slots.lock().await.remove(client_id);
             return Err(e);
         }
 
-
         match timeout(CLIENT_TIMEOUT, rx).await {
             Ok(rcv) => {
                 match rcv {
                     Ok(res) => res,
-                    Err(_) => {
+                    Err(e) => {
                         self.st.slots.lock().await.remove(client_id);
-                        Err(Error::new(ErrorKind::TimedOut, "timeout waiting for response"))
+                        Err(Error::new(ErrorKind::TimedOut, e))
                     }
                 }
             }
-            Err(_) => {
+            Err(e) => {
                 self.st.slots.lock().await.remove(client_id);
-                Err(Error::new(ErrorKind::TimedOut, "timeout waiting for response"))
+                Err(Error::new(ErrorKind::TimedOut, e))
             }
         }
     }
