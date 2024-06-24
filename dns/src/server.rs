@@ -85,7 +85,7 @@ impl Processor {
                     .await.unwrap();
                 return;
             } else {
-                let res = ctx.client.query(query).await.unwrap();
+                let res = ctx.client.query(query).await.unwrap(); // TODO must handle error here
                 ctx.cache.set(&query.questions[0], &res.answers).await;
                 ctx.socket.send_to(res.to_udp_packet(None).unwrap().as_slice(), &src)
                     .await.unwrap();

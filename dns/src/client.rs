@@ -1,16 +1,18 @@
 use std::collections::HashMap;
-use std::io;
+use std::io::{Error, ErrorKind, Result};
 use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, oneshot};
 use tokio::task::JoinHandle;
+use tokio::time::timeout;
 
 use crate::protocol::Message;
 
 /// Slots tracks that state to support de-multiplexing responses.
 struct Slots {
-    pending: HashMap<u16, (u16, oneshot::Sender<io::Result<Box<Message>>>)>,
+    pending: HashMap<u16, (u16, oneshot::Sender<Result<Box<Message>>>)>,
     counter: u16,
 }
 
@@ -22,7 +24,7 @@ impl Slots {
         }
     }
 
-    fn create(&mut self, orig_id: u16) -> (u16, oneshot::Receiver<io::Result<Box<Message>>>) {
+    fn create(&mut self, orig_id: u16) -> (u16, oneshot::Receiver<Result<Box<Message>>>) {
         let (tx, rx) = oneshot::channel();
         // find a free key
         self.counter = self.counter.wrapping_add(1);
@@ -35,27 +37,29 @@ impl Slots {
         (client_id, rx)
     }
 
-    fn remove(&mut self, id: u16) -> Option<(u16, oneshot::Sender<io::Result<Box<Message>>>)> {
+    fn remove(&mut self, id: u16) -> Option<(u16, oneshot::Sender<Result<Box<Message>>>)> {
         self.pending.remove(&id)
     }
 }
 
-struct State {
+struct Channel {
     socket: UdpSocket,
     slots: Mutex<Slots>,
 }
 
 pub struct DnsClient {
-    st: Arc<State>,
+    st: Arc<Channel>,
     r_handle: JoinHandle<()>,
 }
 
+const CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
+
 impl DnsClient {
-    pub async fn connect(addr: &str) -> io::Result<DnsClient> {
+    pub async fn connect(addr: &str) -> Result<DnsClient> {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.connect(addr).await?;
 
-        let st = Arc::new(State {
+        let st = Arc::new(Channel {
             socket,
             slots: Mutex::new(Slots {
                 pending: HashMap::new(),
@@ -68,49 +72,51 @@ impl DnsClient {
         Ok(DnsClient { st, r_handle })
     }
 
-    // TODO Currently once the sync loop fails:
-    //   1. new requests will fail on socket.send.
-    //   2. the sync loop will fail to receive and terminate.
-    //
-    // The client should probably transparently re-establish the comms channel similar to the way
-    // gRPC is implemented. Alternatively the client should reach a terminal state and the user
-    // should be responsible for re-creating the DnsClient as the recovery mechanism.
-
-
-    fn start_sync_loop(st: Arc<State>) -> JoinHandle<()> {
+    fn start_sync_loop(st: Arc<Channel>) -> JoinHandle<()> {
         tokio::spawn(async move {
             let mut buf = [0; 4096];
             loop {
+                // TODO harden this call for recovery
                 let (len, _) = st.socket.recv_from(&mut buf).await.unwrap();
                 let mut msg = Message::from_bytes(&buf[..len]).unwrap();
                 if let Some((orig_id, tx)) = st.slots.lock().await.remove(msg.header.id) {
                     msg.header.id = orig_id;
                     tx.send(Ok(msg)).unwrap();
                 } else {
+                    // TODO investigate better logging
                     eprintln!("Received orphaned message with id: {}", msg.header.id);
                 }
             }
         })
     }
 
-    pub async fn query(&self, msg: &Box<Message>) -> io::Result<Box<Message>> {
+    // TODO when is this a reference to a box ? ?
+    pub async fn query(&self, msg: &Box<Message>) -> Result<Box<Message>> {
         let (client_id, rx) = self.st.slots.lock().await.create(msg.header.id);
-        self.st.socket.send(msg.to_udp_packet(Some(client_id)).unwrap().as_slice()).await?;
-        // TODO if the send fails the slot should be removed.
 
-        // TODO flesh out timeout, orphaned slots need to be cleared out.
-        // match timeout(Duration::from_secs(30), rx).await {
-        //    Ok(res) => match res {
-        //         Ok(res) => Ok(res),
-        //         Err(_) => Err(std::io::Error::new(std::io::ErrorKind::Other, "timeout")),
-        //       },
-        //     Err(_) => {
-        //         let mut slots = self.st.slots.lock().await;
-        //         slots.pending.remove(&client_id);
-        //         Err(std::io::Error::new(std::io::ErrorKind::Other, "timeout")
-        //    }
-        // }
-        rx.await.unwrap()
+
+        let packet = msg.to_udp_packet(Some(client_id)).unwrap();
+        if let Err(e) = self.st.socket.send(packet.as_slice()).await {
+            self.st.slots.lock().await.remove(client_id);
+            return Err(e);
+        }
+
+
+        match timeout(CLIENT_TIMEOUT, rx).await {
+            Ok(rcv) => {
+                match rcv {
+                    Ok(res) => res,
+                    Err(_) => {
+                        self.st.slots.lock().await.remove(client_id);
+                        Err(Error::new(ErrorKind::TimedOut, "timeout waiting for response"))
+                    }
+                }
+            }
+            Err(_) => {
+                self.st.slots.lock().await.remove(client_id);
+                Err(Error::new(ErrorKind::TimedOut, "timeout waiting for response"))
+            }
+        }
     }
 }
 
