@@ -91,8 +91,9 @@ impl Header {
         }
     }
 
-    fn write<W: MsgWrite>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_all(&self.id.to_be_bytes())?;
+    fn write<W: MsgWrite>(&self, writer: &mut W, alt_id: Option<u16>) -> io::Result<()> {
+        let id_to_write: u16 = if let Some(id) = alt_id { id }  else { self.id };
+        writer.write_all(&id_to_write.to_be_bytes())?;
         self.flags.write(writer)?;
         writer.write_all(&self.qdcount.to_be_bytes())?;
         writer.write_all(&self.ancount.to_be_bytes())?;
@@ -219,14 +220,16 @@ impl Message {
         )
     }
 
-    pub fn to_udp_packet(&self) -> Result<Vec<u8>> {
+    pub fn to_udp_packet(&self, alt_id: Option<u16>) -> Result<Vec<u8>> {
         let mut writer = MessageWriter::new(Vec::new());
-        self.write(&mut writer)?;
+        self.write(&mut writer, alt_id)?;
         Ok(writer.underlying)
     }
 
-    fn write<W: MsgWrite>(&self, writer: &mut W) -> Result<()> {
-        self.header.write(writer)?;
+
+
+    fn write<W: MsgWrite>(&self, writer: &mut W, alt_id: Option<u16>) -> Result<()> {
+        self.header.write(writer, alt_id)?;
         // TODO make conditional a) it being a query (?) and b) if a question is present ? or
         // should this business logic be added to a builder ?
         for question in &self.questions {

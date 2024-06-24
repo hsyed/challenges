@@ -3,6 +3,7 @@ use server::Processor;
 mod protocol;
 mod server;
 mod cache;
+mod client;
 
 #[tokio::main]
 async fn main() {
