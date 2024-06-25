@@ -24,17 +24,21 @@ impl Slots {
         }
     }
 
-    fn create(&mut self, orig_id: u16) -> (u16, oneshot::Receiver<Result<Message>>) {
+    fn create(&mut self, orig_id: u16) -> Result<(u16, oneshot::Receiver<Result<Message>>)> {
+        if self.pending.len() == ((u16::MAX as usize) +1) {
+            return Err(Error::new(ErrorKind::Other, "out of slots"))
+        }
+
         let (tx, rx) = oneshot::channel();
         // find a free key
         self.counter = self.counter.wrapping_add(1);
-        while self.pending.contains_key(&self.counter) { // todo prevent infinite loop somehow ?
+        while self.pending.contains_key(&self.counter) {
             self.counter = self.counter.wrapping_add(1);
         }
 
         let client_id = self.counter;
         self.pending.insert(client_id, (orig_id, tx));
-        (client_id, rx)
+        Ok((client_id, rx))
     }
 
     fn remove(&mut self, id: u16) -> Option<(u16, oneshot::Sender<Result<Message>>)> {
@@ -93,7 +97,7 @@ impl DnsClient {
                                 }
                             }
                             Err(e) => {
-                                eprintln!("malformed packet: {}\ndata: {}",e, &buf[..len]);
+                                eprintln!("malformed packet: {}\ndata: {:?}",e, &buf[..len]);
                                 continue
                             }
                         }
@@ -109,7 +113,7 @@ impl DnsClient {
     }
 
     pub async fn query(&self, msg: &Message) -> Result<Message> {
-        let (client_id, rx) = self.st.slots.lock().await.create(msg.header.id);
+        let (client_id, rx) = self.st.slots.lock().await.create(msg.header.id)?;
         let packet = msg.to_udp_packet(Some(client_id)).unwrap();
         if let Err(e) = self.st.socket.send_to(packet.as_slice(), &self.st.addr).await {
             self.st.slots.lock().await.remove(client_id);
