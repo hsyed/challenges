@@ -6,7 +6,7 @@ use std::time::Duration;
 use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, oneshot};
 use tokio::task::JoinHandle;
-use tokio::time::timeout;
+use tokio::time::{sleep, timeout};
 
 use super::protocol::Message;
 
@@ -68,24 +68,41 @@ impl DnsClient {
             }),
         });
 
-        let r_handle = Self::start_sync_loop(st.clone());
+        let r_handle = Self::start_receive_loop(st.clone());
 
         Ok(DnsClient { st, r_handle })
     }
 
-    fn start_sync_loop(st: Arc<Channel>) -> JoinHandle<()> {
+    fn start_receive_loop(st: Arc<Channel>) -> JoinHandle<()> {
         tokio::spawn(async move {
             let mut buf = [0; 4096];
             loop {
-                // TODO harden this call for recovery of the loop
-                let (len, _) = st.socket.recv_from(&mut buf).await.unwrap();
-                let mut msg = Message::from_bytes(&buf[..len]).unwrap();
-                if let Some((orig_id, tx)) = st.slots.lock().await.remove(msg.header.id) {
-                    msg.header.id = orig_id;
-                    tx.send(Ok(msg)).unwrap();
-                } else {
-                    // TODO investigate better logging
-                    eprintln!("Received orphaned message with id: {}", msg.header.id);
+                match st.socket.recv_from(&mut buf).await {
+                    Ok((len, _)) => {
+                        match Message::from_bytes(&buf[..len]) {
+                            Ok(mut msg) => {
+                                if let Some((o_id, tx)) = st.slots.lock().await.remove(msg.header.id) {
+                                    msg.header.id = o_id;
+                                    if let Err(e) = tx.send(Ok(msg)) {
+                                        eprintln!("err demul send: {:?}", e);
+                                        continue
+                                    }
+                                } else {
+                                    eprintln!("dns client received orphaned msg: {:?}", msg);
+                                    continue
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("malformed packet: {}\ndata: {}",e, &buf[..len]);
+                                continue
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("failed on socket receive: {}", e);
+                        sleep(Duration::from_millis(100)).await;
+                        continue;
+                    }
                 }
             }
         })
