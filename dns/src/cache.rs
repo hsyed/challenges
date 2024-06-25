@@ -5,8 +5,6 @@ use tokio::sync::RwLock;
 
 use super::protocol::{Question, ResourceRecord};
 
-// TODO consider capping the the upper bound of cached ttl to MAX_TTL_SECONDS ?
-
 // The max TTL seconds allowed by the cache.
 const MAX_TTL_SECONDS: u32 = 1800; // 30 minutes
 
@@ -53,15 +51,28 @@ impl DnsCache {
         })
     }
 
-    pub async fn set(&self, question: &Question, answers: &Vec<ResourceRecord>) {
-        if let Some(ttl) = min_ttl(answers) {
-            let mut cache = self.cache.write().await;
+    /// Adjust the TTL, anything that will go into the cache cannot exceed the caches configured
+    /// TTL.
+    pub fn normalise_ttl(answers: &mut Vec<ResourceRecord>) {
+        for ans in answers {
+            if ans.ttl > MAX_TTL_SECONDS {
+                ans.ttl = MAX_TTL_SECONDS
+            }
+        }
+    }
+
+    pub async fn set(&self, question: &Question, answers: Vec<ResourceRecord>) {
+        let min_ttl = min_ttl(&answers).unwrap();
+
+        let mut cache = self.cache.write().await;
+
+        if min_ttl > 0 {
             cache.insert_ttl(
                 question.clone(),
                 DnsCacheValue {
-                    answers: answers.clone(),
+                    answers,
                     inserted_at: SystemTime::now(),
-                }, ttl).expect("could not set key");
+                }, min_ttl).expect("could not set key");
         }
     }
 }

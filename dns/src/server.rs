@@ -60,7 +60,7 @@ impl Processor {
             Ok(query) => {
                 let ctx = self.ctx.clone();
                 tokio::spawn(async move {
-                    Self::handle_query(&src, &query, &ctx).await;
+                    Self::handle_query(&src, query, &ctx).await;
                 });
             }
             Err(e) => {
@@ -69,7 +69,7 @@ impl Processor {
         };
     }
 
-    async fn handle_query(src: &SocketAddr, query: &Message, ctx: &Context) {
+    async fn handle_query(src: &SocketAddr, query: Message, ctx: &Context) {
         // Todo validate the query
         // Todo add cache hit/miss metrics
         println!("Query: {:?}", query);
@@ -87,28 +87,32 @@ impl Processor {
         }
     }
 
-    async fn respond_from_cache(src: &SocketAddr, query: &Message, ctx: &Context, answers: Vec<ResourceRecord>) {
+    async fn respond_from_cache(src: &SocketAddr, query: Message, ctx: &Context, answers: Vec<ResourceRecord>) {
         println!("from cache");
-        let mut response = query.clone();
+        let mut response = query;
         response.header.flags.set_qr(1);
         response.header.ancount = answers.len() as u16;
         response.answers = answers.clone();
         let _ = ctx.socket.send_to(response.to_udp_packet(None).unwrap().as_slice(), &src).await;
     }
 
-    async fn do_query(src: &SocketAddr, query: &Message, ctx: &Context, set_cache: bool) {
-        match ctx.client.query(query).await {
-            Ok(res) => {
-                if set_cache {
-                    ctx.cache.set(&query.questions[0], &res.answers).await;
-                }
-                let packet = res.to_udp_packet(None).unwrap();
+    async fn do_query(src: &SocketAddr, query: Message, ctx: &Context, set_cache: bool) {
+        match ctx.client.query(&query).await {
+            Ok(mut res) => {
+                let packet = if set_cache && !res.answers.is_empty() {
+                    DnsCache::normalise_ttl(&mut res.answers);
+                    let packet = res.to_udp_packet(None).unwrap();
+                    ctx.cache.set(&query.questions[0], res.answers).await;
+                    packet
+                } else {
+                    res.to_udp_packet(None).unwrap()
+                };
                 let _ = ctx.socket.send_to(packet.as_slice(), &src).await; // TODO handle error
                 return
             }
             Err(e) => {
                 eprintln!("{}", e);
-                let mut response = query.clone();
+                let mut response = query;
                 response.header.flags.set_qr(1);
                 response.header.flags.set_rcode(2); // Server failure
                 let packet = response.to_udp_packet(None).unwrap();
