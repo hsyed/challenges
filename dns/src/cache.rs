@@ -41,7 +41,7 @@ impl DnsCache {
     pub async fn get(&self, question: &Question) -> Option<Vec<ResourceRecord>> {
         let cache = self.cache.read().await;
         cache.get(question).map(|v| {
-            let mut answers = v.answers.clone();
+            let mut answers = v.answers.clone(); // TODO this clone can be prevented if the tll is updated as the message is being written out
             // return a copy of the answers with the TTLs adjusted.
             let elapsed = v.inserted_at.elapsed().unwrap().as_secs() as u32;
             for rr in &mut answers {
