@@ -106,7 +106,9 @@ impl ByteVisitor for CharCounter {
 fn main() {
     let mut args = Cli::parse();
 
+    let mut default = false;
     if !(args.count_lines || args.count_words || args.count_bytes || args.count_chars) {
+        default = true;
         args.count_lines = true;
         args.count_words = true;
         args.count_bytes = true;
@@ -123,6 +125,11 @@ fn main() {
     if args.count_words { visitors.push(&mut wc); }
     if args.count_bytes { visitors.push(&mut bc); }
     if args.count_chars { visitors.push(&mut cc); }
+
+    if !default && visitors.len() > 1 {
+        eprintln!("Only one of -c, -m, -l, -w may be specified");
+        std::process::exit(1);
+    }
 
     if let Some(ref filen) = args.file {
         let file = std::fs::File::open(&filen).unwrap();
