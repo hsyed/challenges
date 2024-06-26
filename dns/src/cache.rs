@@ -67,12 +67,12 @@ impl DnsCache {
         let mut cache = self.cache.write().await;
 
         if min_ttl > 0 {
-            cache.insert_ttl(
+            cache.insert_ttl_evict(
                 question.clone(),
                 DnsCacheValue {
                     answers,
                     inserted_at: SystemTime::now(),
-                }, min_ttl).expect("could not set key");
+                }, Some(min_ttl), true).expect("could not set key");
         }
     }
 }
