@@ -44,7 +44,7 @@ impl ByteVisitor for LineCounter {
 
 struct WordCounter {
     count: u64,
-    in_word: bool
+    in_word: bool,
 }
 
 impl ByteVisitor for WordCounter {
@@ -80,7 +80,7 @@ fn visit_source<R: Read>(source: R, visitors: &mut [&mut dyn ByteVisitor]) {
 
 struct CharCounter {
     count: u64,
-    tally: Vec<u8>
+    tally: Vec<u8>,
 }
 
 impl ByteVisitor for CharCounter {
