@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.38.0", features = ["full"] }
-cached = "0.51.4"
+cached = "0.52.0"
+tower = "0.4.13"
