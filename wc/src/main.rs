@@ -102,7 +102,7 @@ impl ByteVisitor for CharCounter {
     }
 }
 
-// 🤣<-- this is not an ASCII rune (tests data).
+// 🤣<-- this is not an ASCII rune (test data).
 fn main() {
     let mut args = Cli::parse();
 
