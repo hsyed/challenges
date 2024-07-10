@@ -29,10 +29,17 @@ struct Store {
 
 impl Store {
     pub fn new() -> Store {
-        let num_slots = num_cpus::get();
         let cas_counter = AtomicU64::new(0);
-        let cache = Cache::builder().expire_after(Expiry {}).build();
-        let write_slots = (0..num_slots).map(|_| Mutex::new(())).collect();
+        let cache = Cache::builder()
+            // Configure the cache with an upper bound as the total byte count of all the data.The
+            // `weighted_size` is updated on a maintenance task which is 100ms by default.
+            .weigher(|_: &String, value: &Arc<Value>| value.data.len() as u32)
+            .max_capacity(1024 * 1024 * 1024) // 1GB // TODO make this configurable
+            // Provide a strategy for extracting the TTL from the value. TTL is reset on updates.
+            .expire_after(Expiry {})
+            .build();
+        // Use the number of logical cores as the number of write lock slots.
+        let write_slots = (0..num_cpus::get()).map(|_| Mutex::new(())).collect();
 
         Store {
             cache,
@@ -40,6 +47,8 @@ impl Store {
             cas_counter,
         }
     }
+
+    // derive the slot index and then await.
     #[inline]
     async fn lock(&self, key: &String) -> MutexGuard<'_, ()> {
         let mut hasher = DefaultHasher::new();

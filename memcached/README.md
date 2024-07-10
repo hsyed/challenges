@@ -25,3 +25,9 @@ shut down when all `Senders` are dropped, as the `Receiver` will "close" signall
 package.
 * [Moka](https://github.com/moka-rs/moka): a concurrent caching library. This does not support synchronous visits so we 
 take a write lock when performing storage operations.     
+
+### TODO
+
+* wire up prometheus metrics.
+* wire up otel tracing.
+* Make the cache max weighted capacity configurable.
