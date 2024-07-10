@@ -2,8 +2,6 @@ use clap::Parser;
 use tokio::net::TcpListener;
 use tokio::signal;
 
-
-
 #[derive(Parser, Debug)]
 #[clap(name = "memcached")]
 struct Cli {

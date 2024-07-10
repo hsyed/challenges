@@ -132,6 +132,21 @@ impl StoreProcessor {
 mod tests {
     use super::*;
 
+    impl StorageCommand {
+        fn fixture(command: StorageCommandType, key: &str, data: &[u8]) -> StorageCommand
+        {
+            StorageCommand {
+                command,
+                key: key.to_string(),
+                exp_time: 60,
+                data: data.to_vec(),
+                flags: 0,
+                byte_count: 0,
+                no_reply: false,
+            }
+        }
+    }
+
     // TODO:
     // 1. verify CAS.
 
@@ -140,15 +155,7 @@ mod tests {
         let processor = StoreProcessor::new();
 
         { // tests an add against a key that does not exist
-            let command = StorageCommand {
-                command: StorageCommandType::Add,
-                key: "key".to_string(),
-                exp_time: 60,
-                data: b"value1".to_vec(),
-                flags: 0,
-                byte_count: 0,
-                no_reply: false,
-            };
+            let command = StorageCommand::fixture(StorageCommandType::Add, "key", b"value1");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(StorageCommandResponse::Stored, res);
             let res = processor.get(&"key".to_string()).await.unwrap();
@@ -156,15 +163,7 @@ mod tests {
         }
 
         { // tests an add against a key that already exists, should not overwrite
-            let command = StorageCommand {
-                command: StorageCommandType::Add,
-                key: "key".to_string(),
-                exp_time: 60,
-                data: b"value2".to_vec(),
-                no_reply: false,
-                byte_count: 0,
-                flags: 0,
-            };
+            let command = StorageCommand::fixture(StorageCommandType::Add, "key", b"value2");
             let response = processor.execute_storage_command(command).await?;
             assert_eq!(StorageCommandResponse::NotStored, response);
             let res = processor.get(&"key".to_string()).await.unwrap();
@@ -172,15 +171,7 @@ mod tests {
         }
 
         { // tests a set against a key that already exists, should overwrite
-            let command = StorageCommand {
-                command: StorageCommandType::Set,
-                key: "key".to_string(),
-                exp_time: 60,
-                data: b"value3".to_vec(),
-                byte_count: 0,
-                flags: 0,
-                no_reply: false,
-            };
+            let command = StorageCommand::fixture(StorageCommandType::Set, "key", b"value3");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::Stored);
             let res = processor.get(&"key".to_string()).await.unwrap();
@@ -188,31 +179,14 @@ mod tests {
         }
 
         { // replace an unknown key
-            let command = StorageCommand {
-                command: StorageCommandType::Replace,
-                key: "key-unknown".to_string(),
-                exp_time: 60,
-                data: b"value4".to_vec(),
-                byte_count: 0,
-                flags: 0,
-                no_reply: false,
-            };
-
+            let command = StorageCommand::fixture(StorageCommandType::Replace, "key-unknown", b"value4");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::NotStored);
             assert!(processor.get(&"key-unknown".to_string()).await.is_none());
         }
 
         { // replace an existing key
-            let command = StorageCommand {
-                command: StorageCommandType::Replace,
-                key: "key".to_string(),
-                exp_time: 60,
-                data: b"value5".to_vec(),
-                no_reply: false,
-                byte_count: 0,
-                flags: 0,
-            };
+            let command = StorageCommand::fixture(StorageCommandType::Replace, "key", b"value5");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::Stored);
             let res = processor.get(&"key".to_string()).await.unwrap();
@@ -229,74 +203,33 @@ mod tests {
         { // append and prepend to non-existing keys
             assert_eq!(StorageCommandResponse::NotStored,
                        processor.execute_storage_command(
-                           StorageCommand {
-                               command: StorageCommandType::Prepend,
-                               key: "key-unknown".to_string(),
-                               exp_time: 60,
-                               data: b"unknown".to_vec(),
-                               byte_count: 0,
-                               flags: 0,
-                               no_reply: false,
-                           }).await?
+                           StorageCommand::fixture(StorageCommandType::Prepend, "key-unknown", b"unknown")
+                       ).await?
             );
             assert_eq!(StorageCommandResponse::NotStored,
                        processor.execute_storage_command(
-                           StorageCommand {
-                               command: StorageCommandType::Append,
-                               key: "key-unknown".to_string(),
-                               exp_time: 60,
-                               data: b"unknown".to_vec(),
-                               byte_count: 0,
-                               flags: 0,
-                               no_reply: false,
-                           }).await?
+                           StorageCommand::fixture(StorageCommandType::Append, "key-unknown", b"unknown")
+                       ).await?
             );
         }
 
         { // create a key
-            let command = StorageCommand {
-                command: StorageCommandType::Set,
-                key: "key".to_string(),
-                exp_time: 60,
-                data: b"b".to_vec(),
-                byte_count: 0,
-                flags: 0,
-                no_reply: false,
-            };
+            let command = StorageCommand::fixture(StorageCommandType::Set, "key", b"b");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::Stored);
         }
 
         // prepend to the key
         {
-            let command = StorageCommand {
-                command: StorageCommandType::Prepend,
-                key: "key".to_string(),
-                exp_time: 60,
-                data: b"a ".to_vec(),
-                byte_count: 0,
-                flags: 0,
-                no_reply: false,
-            };
-
+            let command = StorageCommand::fixture(StorageCommandType::Prepend, "key", b"a ");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::Stored);
             let res = processor.get(&"key".to_string()).await.unwrap();
             assert_eq!(b"a b".to_vec(), res.data);
         }
-
         // append to the key
         {
-            let command = StorageCommand {
-                command: StorageCommandType::Append,
-                key: "key".to_string(),
-                exp_time: 60,
-                data: b" c".to_vec(),
-                byte_count: 0,
-                flags: 0,
-                no_reply: false,
-            };
-
+            let command = StorageCommand::fixture(StorageCommandType::Append, "key", b" c");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::Stored);
             let res = processor.get(&"key".to_string()).await.unwrap();
