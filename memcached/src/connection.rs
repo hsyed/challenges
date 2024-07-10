@@ -6,6 +6,12 @@ use tokio::net::TcpStream;
 
 use crate::protocol::{Command, RetrievalCommand, StorageCommand, StorageCommandType, Value};
 
+// A buffered reader is used in combination with a Vec to make seeking the end of the command
+// precise/easier and enabling data to be read directly. We don't just save a copy, but by using
+// the buffer only for commands, we keep its size ballpark ~250 +/- 100 bytes.
+//
+// A parser that doesn't rely on BufReader and uses stack buffers is possible, just tedious and
+// error prone to implement.
 #[derive(Debug)]
 pub(crate) struct Connection {
     reader: BufReader<OwnedReadHalf>,
@@ -49,7 +55,7 @@ async fn read_command<R: AsyncBufRead + Unpin>(r: &mut R, buf: &mut Vec<u8>) -> 
     let len = r.read_until(b'\n', buf).await?;
     let buf = &buf[..len];
     if &buf[len - 2..] != b"\r\n" {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "malformed command"));
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "command not terminated with CRLF"));
     }
     match parse_partial_command(&buf[..len - 2])? {
         Command::Storage(mut com) => {
@@ -58,7 +64,7 @@ async fn read_command<R: AsyncBufRead + Unpin>(r: &mut R, buf: &mut Vec<u8>) -> 
             let mut terminal = [0u8; 2];
             r.read_exact(&mut terminal).await?;
             if &terminal != b"\r\n" {
-                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "malformed command"));
+                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "data not terminated with CRLF"));
             }
             com.data = data;
             Ok(Command::Storage(com))
@@ -67,16 +73,19 @@ async fn read_command<R: AsyncBufRead + Unpin>(r: &mut R, buf: &mut Vec<u8>) -> 
     }
 }
 
+const MAX_DATA_SIZE: u32 = 1024 * 1024;
+ const MAX_KEY_SIZE: usize =  250;
+
 /// parse a partial command,
 fn parse_partial_command(command_line: &[u8]) -> Result<Command> {
     let mut parts = command_line.split(|&b| b == b' ').filter(|part| !part.is_empty());
 
     let command = parts.next().ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "missing command"))?;
     let key = parts.next().ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "missing key"))?;
-    if key.len() > 250 {
+    if key.len() > MAX_KEY_SIZE {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "key too long"));
     }
-    let key = std::str::from_utf8(key).map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid key"))?;
+    let key = std::str::from_utf8(key).map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "malformed key"))?;
 
     if command == b"get" {
         if parts.next().is_some() {
@@ -89,19 +98,23 @@ fn parse_partial_command(command_line: &[u8]) -> Result<Command> {
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "unrecognised command"))?;
 
     let mut read_int = |field_id: &str| -> std::io::Result<u32> {
-        let value = parts.next().ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("missing {}", field_id)))?;
-        let value = std::str::from_utf8(value).map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("invalid {}", field_id)))?;
-        value.parse().map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("invalid {}", field_id)))
+        let value = parts.next().ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("missing numeric field {}", field_id)))?;
+        let value = std::str::from_utf8(value).map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("invalid numeric field {}", field_id)))?;
+        value.parse().map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("invalid numeric field{}", field_id)))
     };
 
     let flags = read_int("flags")?;
     let exptime = read_int("exptime")?;
-    let byte_count = read_int("bytes")?;
+    let byte_count = read_int("byte_count")?;
+
+    if byte_count > MAX_DATA_SIZE  {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "data too large"));
+    }
 
     let no_reply: bool = match parts.next() {
         Some(b"noreply") => true,
         None => false,
-        Some(x) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, format!("malformed command: {:?}", std::str::from_utf8(x)))),
+        Some(x) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, format!("malformed extra tag: {:?}", std::str::from_utf8(x)))),
     };
     Ok(
         Command::Storage(
