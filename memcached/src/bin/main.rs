@@ -2,7 +2,7 @@ use clap::Parser;
 use tokio::net::TcpListener;
 use tokio::signal;
 
-use memcached::server;
+
 
 #[derive(Parser, Debug)]
 #[clap(name = "memcached")]
@@ -18,6 +18,6 @@ async fn main() -> std::io::Result<()> {
 
     let args = Cli::parse();
     let listener = TcpListener::bind(&format!("127.0.0.1:{}", args.port)).await?;
-    server::run(listener, signal::ctrl_c()).await;
+    memcached::server::run(listener, signal::ctrl_c()).await;
     Ok(())
 }
