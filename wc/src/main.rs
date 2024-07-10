@@ -27,7 +27,7 @@ struct ByteCounter {
 }
 
 impl ByteVisitor for ByteCounter {
-    fn result(&self) -> String { return self.count.to_string(); }
+    fn result(&self) -> String { self.count.to_string() }
     fn visit(&mut self, _: u8) { self.count += 1; }
     fn done(&mut self) {}
 }
@@ -37,7 +37,7 @@ struct LineCounter {
 }
 
 impl ByteVisitor for LineCounter {
-    fn result(&self) -> String { return self.count.to_string(); }
+    fn result(&self) -> String { self.count.to_string() }
     fn visit(&mut self, byte: u8) { if byte == b'\n' { self.count += 1; } }
     fn done(&mut self) {}
 }
@@ -48,7 +48,7 @@ struct WordCounter {
 }
 
 impl ByteVisitor for WordCounter {
-    fn result(&self) -> String { return self.count.to_string(); }
+    fn result(&self) -> String {self.count.to_string() }
     fn visit(&mut self, byte: u8) {
         if byte == b' ' || byte == b'\n' || byte == b'\t' {
             if self.in_word {
@@ -84,19 +84,19 @@ struct CharCounter {
 }
 
 impl ByteVisitor for CharCounter {
-    fn result(&self) -> String { return self.count.to_string(); }
+    fn result(&self) -> String { self.count.to_string() }
 
     fn visit(&mut self, byte: u8) {
         self.tally.push(byte);
         // from_utf8 is a type conversion / allocation free.
-        if let Ok(_) = std::str::from_utf8(&self.tally) {
+        if std::str::from_utf8(&self.tally).is_ok() {
             self.tally.clear();
             self.count += 1;
         }
     }
 
     fn done(&mut self) {
-        if self.tally.len() > 0 {
+        if !self.tally.is_empty() {
             panic!("Invalid UTF-8");
         }
     }
@@ -132,7 +132,7 @@ fn main() {
     }
 
     if let Some(ref filen) = args.file {
-        let file = std::fs::File::open(&filen).unwrap();
+        let file = std::fs::File::open(filen).unwrap();
         visit_source(file, visitors.as_mut_slice());
     } else {
         visit_source(std::io::stdin(), visitors.as_mut_slice());

@@ -285,7 +285,7 @@ impl<W: Write> MsgWrite for MessageWriter<W> {
                 None => {
                     self.label_tally.insert(name.to_string(), self.pos);
 
-                    match name.split_once(".") {
+                    match name.split_once('.') {
                         None => {
                             self.write_all(&[name.len() as u8])?;
                             self.write_all(name.as_bytes())?;
@@ -304,7 +304,7 @@ impl<W: Write> MsgWrite for MessageWriter<W> {
     }
 
     fn write_all(&mut self, buf: &[u8]) -> Result<()> {
-        self.underlying.write_all(&buf)?;
+        self.underlying.write_all(buf)?;
         self.pos += buf.len() as u16;
         Ok(())
     }
@@ -338,7 +338,8 @@ fn read_labels_to_str<R: Read + Seek>(r: &mut R) -> Result<String> {
                 );
             }
             LabelKind::Pointer(offset) => {
-                let pos = r.seek(io::SeekFrom::Current(0))?;
+                
+                let pos = r.stream_position()?;
                 r.seek(io::SeekFrom::Start(offset as u64))?;
                 // TODO 1: is the as_str bad ? Can I switch the String used in qname to &str ?
                 // TODO 2: is the recursion here bad ?

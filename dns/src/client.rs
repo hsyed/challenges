@@ -66,10 +66,7 @@ impl DnsClient {
         let st = Arc::new(Channel {
             socket,
             addr: String::from(addr),
-            slots: Mutex::new(Slots {
-                pending: HashMap::new(),
-                counter: 0,
-            }),
+            slots: Mutex::new(Slots::new()),
         });
 
         let r_handle = Self::start_receive_loop(st.clone());

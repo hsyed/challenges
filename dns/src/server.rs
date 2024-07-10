@@ -75,15 +75,12 @@ impl Processor {
         println!("Query: {:?}", query);
         if query.questions.len() == 1 {
             if let Some(answers) = ctx.cache.get(&query.questions[0]).await {
-                Self::respond_from_cache(&src, query, ctx, answers).await;
-                return;
+                Self::respond_from_cache(src, query, ctx, answers).await
             } else {
-                Self::do_query(src, query, ctx, true).await;
-                return
+                Self::do_query(src, query, ctx, true).await
             }
         } else { // more than one question -- we just pass that through
-            Self::do_query(src, query, ctx, false).await;
-            return;
+            Self::do_query(src, query, ctx, false).await
         }
     }
 
@@ -92,7 +89,7 @@ impl Processor {
         let mut response = query;
         response.header.flags.set_qr(1);
         response.header.ancount = answers.len() as u16;
-        response.answers = answers.clone();
+        response.answers.clone_from(&answers);
         let _ = ctx.socket.send_to(response.to_udp_packet(None).unwrap().as_slice(), &src).await;
     }
 
@@ -107,8 +104,7 @@ impl Processor {
                 } else {
                     res.to_udp_packet(None).unwrap()
                 };
-                let _ = ctx.socket.send_to(packet.as_slice(), &src).await; // TODO handle error
-                return
+                let _ = ctx.socket.send_to(packet.as_slice(), &src).await;
             }
             Err(e) => {
                 eprintln!("{}", e);
@@ -117,7 +113,6 @@ impl Processor {
                 response.header.flags.set_rcode(2); // Server failure
                 let packet = response.to_udp_packet(None).unwrap();
                 let _ = ctx.socket.send_to(packet.as_slice(), &src).await;
-                return
             }
         }
     }

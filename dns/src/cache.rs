@@ -14,7 +14,7 @@ struct DnsCacheValue {
 }
 
 
-fn min_ttl(rr: &Vec<ResourceRecord>) -> Option<u64> {
+fn min_ttl(rr: &[ResourceRecord]) -> Option<u64> {
     rr.iter()
         .min_by_key(|rr| rr.ttl)
         // If the TTL is greater than the max TTL allowed by the cache, use the max TTL.
