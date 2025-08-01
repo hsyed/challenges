@@ -1,0 +1,10 @@
+[package]
+name = "ts-rust"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "ts_rust"
+crate-type = ["cdylib"]
+
+[dependencies]
