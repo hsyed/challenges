@@ -1,5 +1,8 @@
 # Rust + TypeScript + Deno FFI Example
 
+> [!WARNING]  
+> This example was mostly vibe coded with some manual fixes.
+
 A complete example demonstrating seamless integration between Rust and TypeScript using Deno's Foreign Function Interface (FFI).
 
 ## 🚀 Quick Start
