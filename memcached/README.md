@@ -6,6 +6,8 @@ The main goal for this challenge is to practice how an idiomatic async rust TCP 
 has a [solution](https://github.com/tokio-rs/mini-redis) to the [Redis challenge](https://codingchallenges.fyi/challenges/challenge-redis/)
 here. I'm going to use this as a reference.
 
+Note: this was not vibe coded! Copilot was on.
+
 ## Things learned from this challenge:
 
 * in a function signature like so: `run(tcp_listener: TcpListener, shutdown: impl Future)`, the `impl` is syntactic 
