@@ -1,4 +1,4 @@
 [workspace]
 resolver = "2"
 
-members = ["conways", "dns", "memcached", "wc"]
+members = ["vibe/conways", "dns", "memcached", "wc"]
