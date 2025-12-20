@@ -5,8 +5,8 @@ use tokio::signal;
 #[derive(Parser, Debug)]
 #[clap(name = "memcached")]
 struct Cli {
-    #[clap(short='p', default_value="9999")]
-    port: u16
+    #[clap(short = 'p', default_value = "9999")]
+    port: u16,
 }
 
 #[tokio::main]

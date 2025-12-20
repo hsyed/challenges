@@ -27,8 +27,12 @@ struct ByteCounter {
 }
 
 impl ByteVisitor for ByteCounter {
-    fn result(&self) -> String { self.count.to_string() }
-    fn visit(&mut self, _: u8) { self.count += 1; }
+    fn result(&self) -> String {
+        self.count.to_string()
+    }
+    fn visit(&mut self, _: u8) {
+        self.count += 1;
+    }
     fn done(&mut self) {}
 }
 
@@ -37,8 +41,14 @@ struct LineCounter {
 }
 
 impl ByteVisitor for LineCounter {
-    fn result(&self) -> String { self.count.to_string() }
-    fn visit(&mut self, byte: u8) { if byte == b'\n' { self.count += 1; } }
+    fn result(&self) -> String {
+        self.count.to_string()
+    }
+    fn visit(&mut self, byte: u8) {
+        if byte == b'\n' {
+            self.count += 1;
+        }
+    }
     fn done(&mut self) {}
 }
 
@@ -48,7 +58,9 @@ struct WordCounter {
 }
 
 impl ByteVisitor for WordCounter {
-    fn result(&self) -> String {self.count.to_string() }
+    fn result(&self) -> String {
+        self.count.to_string()
+    }
     fn visit(&mut self, byte: u8) {
         if byte == b' ' || byte == b'\n' || byte == b'\t' {
             if self.in_word {
@@ -84,7 +96,9 @@ struct CharCounter {
 }
 
 impl ByteVisitor for CharCounter {
-    fn result(&self) -> String { self.count.to_string() }
+    fn result(&self) -> String {
+        self.count.to_string()
+    }
 
     fn visit(&mut self, byte: u8) {
         self.tally.push(byte);
@@ -115,16 +129,30 @@ fn main() {
     }
 
     let mut lc = LineCounter { count: 0 };
-    let mut wc = WordCounter { count: 0, in_word: false };
+    let mut wc = WordCounter {
+        count: 0,
+        in_word: false,
+    };
     let mut bc = ByteCounter { count: 0 };
-    let mut cc = CharCounter { count: 0, tally: Vec::new() };
+    let mut cc = CharCounter {
+        count: 0,
+        tally: Vec::new(),
+    };
 
     let mut visitors: Vec<&mut dyn ByteVisitor> = Vec::new();
 
-    if args.count_lines { visitors.push(&mut lc); }
-    if args.count_words { visitors.push(&mut wc); }
-    if args.count_bytes { visitors.push(&mut bc); }
-    if args.count_chars { visitors.push(&mut cc); }
+    if args.count_lines {
+        visitors.push(&mut lc);
+    }
+    if args.count_words {
+        visitors.push(&mut wc);
+    }
+    if args.count_bytes {
+        visitors.push(&mut bc);
+    }
+    if args.count_chars {
+        visitors.push(&mut cc);
+    }
 
     if !default && visitors.len() > 1 {
         eprintln!("Only one of -c, -m, -l, -w may be specified");
@@ -138,13 +166,12 @@ fn main() {
         visit_source(std::io::stdin(), visitors.as_mut_slice());
     }
 
-    let results = visitors.iter().map(|v| v.result()).fold(String::new(), |acc, s| {
-        if acc.is_empty() {
-            s
-        } else {
-            acc + " " + &s
-        }
-    });
+    let results = visitors
+        .iter()
+        .map(|v| v.result())
+        .fold(String::new(), |acc, s| {
+            if acc.is_empty() { s } else { acc + " " + &s }
+        });
 
     println!("{} {}", results, args.file.unwrap_or("".to_string()));
 }

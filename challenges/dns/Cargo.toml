@@ -1,11 +1,12 @@
 [package]
 name = "dns"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1.38.0", features = ["full"] }
-cached = "0.52.0"
-tower = "0.4.13"
+tokio = { workspace = true }
+cached = { workspace = true }
+tower = { workspace = true }
+

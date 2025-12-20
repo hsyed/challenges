@@ -36,7 +36,6 @@ pub(crate) enum RetrievalCommand {
     Get { key: String },
 }
 
-
 #[derive(Debug)]
 pub(crate) enum Command {
     Storage(StorageCommand),
@@ -66,5 +65,3 @@ pub(crate) struct Value {
     pub(crate) cas: u64,
     pub(crate) data: Vec<u8>,
 }
-
-

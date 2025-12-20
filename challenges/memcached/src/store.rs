@@ -16,7 +16,13 @@ impl moka::Expiry<String, Arc<Value>> for Expiry {
         Some(Duration::from_secs(value.exp_time as u64))
     }
 
-    fn expire_after_update(&self, _: &String, value: &Arc<Value>, _: Instant, _: Option<Duration>) -> Option<Duration> {
+    fn expire_after_update(
+        &self,
+        _: &String,
+        value: &Arc<Value>,
+        _: Instant,
+        _: Option<Duration>,
+    ) -> Option<Duration> {
         Some(Duration::from_secs(value.exp_time as u64))
     }
 }
@@ -60,10 +66,10 @@ impl Store {
 
     #[inline]
     fn next_cas(&self) -> u64 {
-        self.cas_counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst) //TODO understand the SeqCst ordering
+        self.cas_counter
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst) //TODO understand the SeqCst ordering
     }
 }
-
 
 pub(crate) struct StoreProcessor {
     store: Store,
@@ -73,12 +79,13 @@ impl StoreProcessor {
     pub(crate) fn new() -> StoreProcessor {
         let store = Store::new();
 
-        StoreProcessor {
-            store,
-        }
+        StoreProcessor { store }
     }
 
-    pub(crate) async fn execute_storage_command(&self, mut args: StorageCommand) -> std::io::Result<StorageCommandResponse> {
+    pub(crate) async fn execute_storage_command(
+        &self,
+        mut args: StorageCommand,
+    ) -> std::io::Result<StorageCommandResponse> {
         let _lock = self.store.lock(&args.key).await;
 
         return match args.command {
@@ -134,16 +141,17 @@ impl StoreProcessor {
         self.store.cache.insert(args.key, value).await
     }
 
-    pub(crate) async fn get(&self, key: &str) -> Option<Arc<Value>> { self.store.cache.get(key).await }
+    pub(crate) async fn get(&self, key: &str) -> Option<Arc<Value>> {
+        self.store.cache.get(key).await
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use StorageCommandType::*;
     use super::*;
+    use StorageCommandType::*;
 
-    fn fixture(command: StorageCommandType, key: &str, data: &[u8]) -> StorageCommand
-    {
+    fn fixture(command: StorageCommandType, key: &str, data: &[u8]) -> StorageCommand {
         StorageCommand {
             command,
             key: key.to_string(),
@@ -155,7 +163,6 @@ mod tests {
         }
     }
 
-
     // TODO:
     // 1. verify CAS.
 
@@ -163,7 +170,8 @@ mod tests {
     async fn test_processor_storage_set_add_replace() -> std::io::Result<()> {
         let processor = StoreProcessor::new();
 
-        { // tests an add against a key that does not exist
+        {
+            // tests an add against a key that does not exist
             let command = fixture(Add, "key", b"value1");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(StorageCommandResponse::Stored, res);
@@ -171,7 +179,8 @@ mod tests {
             assert_eq!(b"value1".to_vec(), res.data);
         }
 
-        { // tests an add against a key that already exists, should not overwrite
+        {
+            // tests an add against a key that already exists, should not overwrite
             let command = fixture(Add, "key", b"value2");
             let response = processor.execute_storage_command(command).await?;
             assert_eq!(StorageCommandResponse::NotStored, response);
@@ -179,7 +188,8 @@ mod tests {
             assert_eq!(b"value1".to_vec(), res.data);
         }
 
-        { // tests a set against a key that already exists, should overwrite
+        {
+            // tests a set against a key that already exists, should overwrite
             let command = fixture(Set, "key", b"value3");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::Stored);
@@ -187,14 +197,16 @@ mod tests {
             assert_eq!(b"value3".to_vec(), res.data);
         }
 
-        { // replace an unknown key
+        {
+            // replace an unknown key
             let command = fixture(Replace, "key-unknown", b"value4");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::NotStored);
             assert!(processor.get(&"key-unknown".to_string()).await.is_none());
         }
 
-        { // replace an existing key
+        {
+            // replace an existing key
             let command = fixture(Replace, "key", b"value5");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::Stored);
@@ -209,20 +221,24 @@ mod tests {
     async fn test_processor_storage_append_prepend() -> std::io::Result<()> {
         let processor = StoreProcessor::new();
 
-        { // append and prepend to non-existing keys
-            assert_eq!(StorageCommandResponse::NotStored,
-                       processor.execute_storage_command(
-                           fixture(Prepend, "key-unknown", b"unknown")
-                       ).await?
+        {
+            // append and prepend to non-existing keys
+            assert_eq!(
+                StorageCommandResponse::NotStored,
+                processor
+                    .execute_storage_command(fixture(Prepend, "key-unknown", b"unknown"))
+                    .await?
             );
-            assert_eq!(StorageCommandResponse::NotStored,
-                       processor.execute_storage_command(
-                           fixture(Append, "key-unknown", b"unknown")
-                       ).await?
+            assert_eq!(
+                StorageCommandResponse::NotStored,
+                processor
+                    .execute_storage_command(fixture(Append, "key-unknown", b"unknown"))
+                    .await?
             );
         }
 
-        { // create a key
+        {
+            // create a key
             let command = fixture(Set, "key", b"b");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::Stored);

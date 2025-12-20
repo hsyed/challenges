@@ -1,5 +1,4 @@
 /// Predefined patterns for Conway's Game of Life
-
 use crate::game::Grid;
 
 /// Load a glider pattern at position (x, y)
@@ -8,11 +7,7 @@ pub fn load_glider(grid: &mut Grid, x: usize, y: usize) {
     //  *
     //   **
     // **
-    let pattern = [
-        (1, 0),
-        (2, 1),
-        (0, 2), (1, 2), (2, 2),
-    ];
+    let pattern = [(1, 0), (2, 1), (0, 2), (1, 2), (2, 2)];
 
     for (dx, dy) in pattern.iter() {
         let nx = (x + dx) % grid.width;
@@ -37,10 +32,7 @@ pub fn load_blinker(grid: &mut Grid, x: usize, y: usize) {
 pub fn load_toad(grid: &mut Grid, x: usize, y: usize) {
     //  ***
     // ***
-    let pattern = [
-        (1, 0), (2, 0), (3, 0),
-        (0, 1), (1, 1), (2, 1),
-    ];
+    let pattern = [(1, 0), (2, 0), (3, 0), (0, 1), (1, 1), (2, 1)];
 
     for (dx, dy) in pattern.iter() {
         let nx = (x + dx) % grid.width;
@@ -56,12 +48,7 @@ pub fn load_beacon(grid: &mut Grid, x: usize, y: usize) {
     // *
     //    *
     //   **
-    let pattern = [
-        (0, 0), (1, 0),
-        (0, 1),
-        (3, 2),
-        (2, 3), (3, 3),
-    ];
+    let pattern = [(0, 0), (1, 0), (0, 1), (3, 2), (2, 3), (3, 3)];
 
     for (dx, dy) in pattern.iter() {
         let nx = (x + dx) % grid.width;
@@ -74,11 +61,18 @@ pub fn load_beacon(grid: &mut Grid, x: usize, y: usize) {
 /// Period: 3, one of the most common oscillators
 pub fn load_pulsar(grid: &mut Grid, x: usize, y: usize) {
     let quadrant = [
-        (2, 0), (3, 0), (4, 0),
-        (0, 2), (5, 2),
-        (0, 3), (5, 3),
-        (0, 4), (5, 4),
-        (2, 5), (3, 5), (4, 5),
+        (2, 0),
+        (3, 0),
+        (4, 0),
+        (0, 2),
+        (5, 2),
+        (0, 3),
+        (5, 3),
+        (0, 4),
+        (5, 4),
+        (2, 5),
+        (3, 5),
+        (4, 5),
     ];
 
     // Apply all 4 quadrants symmetrically
@@ -106,10 +100,15 @@ pub fn load_lwss(grid: &mut Grid, x: usize, y: usize) {
     //  *   *
     //   ****
     let pattern = [
-        (1, 0), (4, 0),
+        (1, 0),
+        (4, 0),
         (5, 1),
-        (1, 2), (5, 2),
-        (2, 3), (3, 3), (4, 3), (5, 3),
+        (1, 2),
+        (5, 2),
+        (2, 3),
+        (3, 3),
+        (4, 3),
+        (5, 3),
     ];
 
     for (dx, dy) in pattern.iter() {
@@ -123,15 +122,24 @@ pub fn load_lwss(grid: &mut Grid, x: usize, y: usize) {
 /// Period: 15
 pub fn load_pentadecathlon(grid: &mut Grid, x: usize, y: usize) {
     let pattern = [
-        (2, 0), (3, 0),
-        (1, 1), (4, 1),
-        (1, 2), (4, 2),
-        (2, 3), (3, 3),
-        (2, 4), (3, 4),
-        (2, 5), (3, 5),
-        (1, 6), (4, 6),
-        (1, 7), (4, 7),
-        (2, 8), (3, 8),
+        (2, 0),
+        (3, 0),
+        (1, 1),
+        (4, 1),
+        (1, 2),
+        (4, 2),
+        (2, 3),
+        (3, 3),
+        (2, 4),
+        (3, 4),
+        (2, 5),
+        (3, 5),
+        (1, 6),
+        (4, 6),
+        (1, 7),
+        (4, 7),
+        (2, 8),
+        (3, 8),
     ];
 
     for (dx, dy) in pattern.iter() {

@@ -45,7 +45,6 @@ struct Listener {
     shutdown_complete_tx: mpsc::Sender<()>,
 }
 
-
 impl Listener {
     pub async fn run(&mut self) -> std::io::Result<()> {
         info!("accepting inbound connections");

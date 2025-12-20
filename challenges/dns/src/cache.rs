@@ -13,28 +13,31 @@ struct DnsCacheValue {
     inserted_at: SystemTime,
 }
 
-
-fn min_ttl(rr: &[ResourceRecord]) -> Option<u64> {
+fn min_ttl(rr: &[ResourceRecord]) -> Option<Duration> {
     rr.iter()
         .min_by_key(|rr| rr.ttl)
         // If the TTL is greater than the max TTL allowed by the cache, use the max TTL.
-        .map(|k| if k.ttl > MAX_TTL_SECONDS { MAX_TTL_SECONDS } else { k.ttl })
-        .map(|ttl| Duration::from_secs(ttl as u64).as_millis() as u64)
+        .map(|k| {
+            if k.ttl > MAX_TTL_SECONDS {
+                MAX_TTL_SECONDS
+            } else {
+                k.ttl
+            }
+        })
+        .map(|ttl| Duration::from_secs(ttl as u64))
 }
-
 
 pub struct DnsCache {
     cache: RwLock<ExpiringSizedCache<Question, DnsCacheValue>>,
 }
 
-
 impl DnsCache {
     // TODO consider upper bound on size
     pub fn new() -> DnsCache {
         DnsCache {
-            cache: RwLock::new(ExpiringSizedCache::new(
-                Duration::from_secs(MAX_TTL_SECONDS as u64).as_millis() as u64,
-            )),
+            cache: RwLock::new(ExpiringSizedCache::new(Duration::from_secs(
+                MAX_TTL_SECONDS as u64,
+            ))),
         }
     }
 
@@ -45,7 +48,11 @@ impl DnsCache {
             // return a copy of the answers with the TTLs adjusted.
             let elapsed = v.inserted_at.elapsed().unwrap().as_secs() as u32;
             for rr in &mut answers {
-                rr.ttl = if elapsed < rr.ttl { rr.ttl - elapsed } else { 0 }
+                rr.ttl = if elapsed < rr.ttl {
+                    rr.ttl - elapsed
+                } else {
+                    0
+                }
             }
             answers
         })
@@ -66,13 +73,18 @@ impl DnsCache {
 
         let mut cache = self.cache.write().await;
 
-        if min_ttl > 0 {
-            cache.insert_ttl_evict(
-                question.clone(),
-                DnsCacheValue {
-                    answers,
-                    inserted_at: SystemTime::now(),
-                }, Some(min_ttl), true).expect("could not set key");
+        if !min_ttl.is_zero() {
+            cache
+                .insert_ttl_evict(
+                    question.clone(),
+                    DnsCacheValue {
+                        answers,
+                        inserted_at: SystemTime::now(),
+                    },
+                    Some(min_ttl),
+                    true,
+                )
+                .expect("could not set key");
         }
     }
 }

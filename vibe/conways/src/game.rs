@@ -54,9 +54,14 @@ impl Grid {
     /// Count living neighbors for cell at (x, y) with toroidal wrapping
     pub fn count_alive_neighbors(&self, x: usize, y: usize) -> usize {
         let offsets = [
-            (-1, -1), (-1, 0), (-1, 1),
-            ( 0, -1),          ( 0, 1),
-            ( 1, -1), ( 1, 0), ( 1, 1),
+            (-1, -1),
+            (-1, 0),
+            (-1, 1),
+            (0, -1),
+            (0, 1),
+            (1, -1),
+            (1, 0),
+            (1, 1),
         ];
 
         let x_i = x as isize;
@@ -87,9 +92,9 @@ impl Grid {
                 // 2. Any dead cell with exactly 3 neighbors becomes alive
                 // 3. All other cells die or stay dead
                 let next_alive = match (alive, neighbors) {
-                    (true, 2) | (true, 3) => true,  // Survival
-                    (false, 3) => true,              // Birth
-                    _ => false,                       // Death
+                    (true, 2) | (true, 3) => true, // Survival
+                    (false, 3) => true,            // Birth
+                    _ => false,                    // Death
                 };
 
                 next.set(x, y, next_alive);

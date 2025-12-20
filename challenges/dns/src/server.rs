@@ -2,8 +2,8 @@ use std::io::Result;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use tokio::net::UdpSocket;
 use crate::client::DnsClient;
+use tokio::net::UdpSocket;
 
 use super::cache::DnsCache;
 use super::protocol::{Message, ResourceRecord};
@@ -23,27 +23,24 @@ pub struct Processor {
 
 impl Processor {
     pub async fn build() -> Result<Processor> {
-        Ok(
-            Processor {
-                ctx: Arc::new(
-                    Context {
-                        socket: UdpSocket::bind("127.0.0.1:1053").
-                            await.expect("couldn't bind to address"),
-                        client: DnsClient::connect("8.8.8.8:53")
-                            .await.expect("couldn't connect forwarder"),
-                        cache: DnsCache::new(),
-                    }
-                )
-            }
-        )
+        Ok(Processor {
+            ctx: Arc::new(Context {
+                socket: UdpSocket::bind("127.0.0.1:1053")
+                    .await
+                    .expect("couldn't bind to address"),
+                client: DnsClient::connect("8.8.8.8:53")
+                    .await
+                    .expect("couldn't connect forwarder"),
+                cache: DnsCache::new(),
+            }),
+        })
     }
 
     pub async fn run_loop(&self) {
         loop {
             let mut buf = [0; 4096];
             match self.ctx.socket.recv_from(&mut buf).await {
-                Ok((amt, src)) =>
-                    self.handle_packet(&buf[..amt], src),
+                Ok((amt, src)) => self.handle_packet(&buf[..amt], src),
                 Err(e) => {
                     // TODO this should probably take down the server or a watchdog should be
                     // trying to re-establish the socket ?
@@ -79,18 +76,27 @@ impl Processor {
             } else {
                 Self::do_query(src, query, ctx, true).await
             }
-        } else { // more than one question -- we just pass that through
+        } else {
+            // more than one question -- we just pass that through
             Self::do_query(src, query, ctx, false).await
         }
     }
 
-    async fn respond_from_cache(src: &SocketAddr, query: Message, ctx: &Context, answers: Vec<ResourceRecord>) {
+    async fn respond_from_cache(
+        src: &SocketAddr,
+        query: Message,
+        ctx: &Context,
+        answers: Vec<ResourceRecord>,
+    ) {
         println!("from cache");
         let mut response = query;
         response.header.flags.set_qr(1);
         response.header.ancount = answers.len() as u16;
         response.answers.clone_from(&answers);
-        let _ = ctx.socket.send_to(response.to_udp_packet(None).unwrap().as_slice(), &src).await;
+        let _ = ctx
+            .socket
+            .send_to(response.to_udp_packet(None).unwrap().as_slice(), &src)
+            .await;
     }
 
     async fn do_query(src: &SocketAddr, query: Message, ctx: &Context, set_cache: bool) {
