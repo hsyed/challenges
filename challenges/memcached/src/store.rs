@@ -88,7 +88,7 @@ impl StoreProcessor {
     ) -> std::io::Result<StorageCommandResponse> {
         let _lock = self.store.lock(&args.key).await;
 
-        return match args.command {
+        match args.command {
             StorageCommandType::Set => {
                 self.do_insert(args).await;
                 Ok(StorageCommandResponse::Stored)
@@ -128,7 +128,7 @@ impl StoreProcessor {
                     Ok(StorageCommandResponse::NotStored)
                 }
             }
-        };
+        }
     }
 
     async fn do_insert(&self, args: StorageCommand) {
@@ -175,7 +175,7 @@ mod tests {
             let command = fixture(Add, "key", b"value1");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(StorageCommandResponse::Stored, res);
-            let res = processor.get(&"key".to_string()).await.unwrap();
+            let res = processor.get("key").await.unwrap();
             assert_eq!(b"value1".to_vec(), res.data);
         }
 
@@ -184,7 +184,7 @@ mod tests {
             let command = fixture(Add, "key", b"value2");
             let response = processor.execute_storage_command(command).await?;
             assert_eq!(StorageCommandResponse::NotStored, response);
-            let res = processor.get(&"key".to_string()).await.unwrap();
+            let res = processor.get("key").await.unwrap();
             assert_eq!(b"value1".to_vec(), res.data);
         }
 
@@ -193,7 +193,7 @@ mod tests {
             let command = fixture(Set, "key", b"value3");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::Stored);
-            let res = processor.get(&"key".to_string()).await.unwrap();
+            let res = processor.get("key").await.unwrap();
             assert_eq!(b"value3".to_vec(), res.data);
         }
 
@@ -202,7 +202,7 @@ mod tests {
             let command = fixture(Replace, "key-unknown", b"value4");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::NotStored);
-            assert!(processor.get(&"key-unknown".to_string()).await.is_none());
+            assert!(processor.get("key-unknown").await.is_none());
         }
 
         {
@@ -210,7 +210,7 @@ mod tests {
             let command = fixture(Replace, "key", b"value5");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::Stored);
-            let res = processor.get(&"key".to_string()).await.unwrap();
+            let res = processor.get("key").await.unwrap();
             assert_eq!(b"value5".to_vec(), res.data);
         }
 
@@ -249,7 +249,7 @@ mod tests {
             let command = fixture(Prepend, "key", b"a ");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::Stored);
-            let res = processor.get(&"key".to_string()).await.unwrap();
+            let res = processor.get("key").await.unwrap();
             assert_eq!(b"a b".to_vec(), res.data);
         }
         // append to the key
@@ -257,7 +257,7 @@ mod tests {
             let command = fixture(Append, "key", b" c");
             let res = processor.execute_storage_command(command).await?;
             assert_eq!(res, StorageCommandResponse::Stored);
-            let res = processor.get(&"key".to_string()).await.unwrap();
+            let res = processor.get("key").await.unwrap();
             assert_eq!(b"a b c".to_vec(), res.data);
         }
         Ok(())

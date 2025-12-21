@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{BufReader, Read};
 
 use clap::Parser;
 
@@ -80,7 +80,7 @@ impl ByteVisitor for WordCounter {
 }
 
 fn visit_source<R: Read>(source: R, visitors: &mut [&mut dyn ByteVisitor]) {
-    for byte in source.bytes() {
+    for byte in BufReader::new(source).bytes() {
         let byte = byte.unwrap();
         for visitor in visitors.iter_mut() {
             visitor.visit(byte);

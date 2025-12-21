@@ -3,10 +3,12 @@ use std::io::{Error, ErrorKind, Result};
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::net::UdpSocket;
-use tokio::sync::{Mutex, oneshot};
-use tokio::task::JoinHandle;
-use tokio::time::{sleep, timeout};
+use tokio::{
+    net::UdpSocket,
+    sync::{Mutex, oneshot},
+    task::JoinHandle,
+    time::{sleep, timeout},
+};
 
 use super::protocol::Message;
 
@@ -26,7 +28,7 @@ impl Slots {
 
     fn create(&mut self, orig_id: u16) -> Result<(u16, oneshot::Receiver<Result<Message>>)> {
         if self.pending.len() == ((u16::MAX as usize) + 1) {
-            return Err(Error::new(ErrorKind::Other, "out of slots"));
+            return Err(Error::other("out of slots"));
         }
 
         let (tx, rx) = oneshot::channel();

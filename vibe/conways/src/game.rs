@@ -144,11 +144,11 @@ mod tests {
         let next = grid.next_generation();
 
         // Should be horizontal now
-        assert_eq!(next.get(1, 2), true);
-        assert_eq!(next.get(2, 2), true);
-        assert_eq!(next.get(3, 2), true);
-        assert_eq!(next.get(2, 1), false);
-        assert_eq!(next.get(2, 3), false);
+        assert!(next.get(1, 2));
+        assert!(next.get(2, 2));
+        assert!(next.get(3, 2));
+        assert!(!next.get(2, 1));
+        assert!(!next.get(2, 3));
     }
 
     #[test]
@@ -163,9 +163,9 @@ mod tests {
         let next = grid.next_generation();
 
         // Should remain unchanged
-        assert_eq!(next.get(1, 1), true);
-        assert_eq!(next.get(2, 1), true);
-        assert_eq!(next.get(1, 2), true);
-        assert_eq!(next.get(2, 2), true);
+        assert!(next.get(1, 1));
+        assert!(next.get(2, 1));
+        assert!(next.get(1, 2));
+        assert!(next.get(2, 2));
     }
 }

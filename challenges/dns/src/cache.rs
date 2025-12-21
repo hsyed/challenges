@@ -48,11 +48,7 @@ impl DnsCache {
             // return a copy of the answers with the TTLs adjusted.
             let elapsed = v.inserted_at.elapsed().unwrap().as_secs() as u32;
             for rr in &mut answers {
-                rr.ttl = if elapsed < rr.ttl {
-                    rr.ttl - elapsed
-                } else {
-                    0
-                }
+                rr.ttl = rr.ttl.saturating_sub(elapsed)
             }
             answers
         })

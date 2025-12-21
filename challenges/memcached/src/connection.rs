@@ -198,12 +198,11 @@ mod test {
                 assert_eq!(com.key, "key");
                 assert_eq!(com.flags, 0);
                 assert_eq!(com.exp_time, 60);
-                assert_eq!(com.no_reply, false);
+                assert!(!com.no_reply);
                 assert_eq!(com.byte_count, 4);
             }
             _ => panic!(),
         }
-        ()
     }
 
     #[tokio::test]
