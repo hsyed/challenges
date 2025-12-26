@@ -15,6 +15,11 @@ enum Commands {
         /// Problem name to run
         problem: String,
     },
+    /// Dynamic Programming Problems
+    DynamicProgramming {
+        /// Problem name to run
+        problem: String,
+    },
 }
 
 fn main() {
@@ -23,6 +28,9 @@ fn main() {
     match cli.command {
         Commands::Introductory { problem } => {
             cses::introductory::tasks().run(&problem);
+        }
+        Commands::DynamicProgramming { problem } => {
+            cses::dynamic_programming::tasks().run(&problem);
         }
     }
 }

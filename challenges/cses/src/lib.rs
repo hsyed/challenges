@@ -1,7 +1,7 @@
-//https://cses.fi/problemset/task/2431
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
 
+pub mod dynamic_programming;
 pub mod introductory;
 
 pub type SolveFn = fn(&mut Scanner, &mut Writer);
