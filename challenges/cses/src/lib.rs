@@ -74,6 +74,17 @@ impl Scanner {
         self.next_line().parse().expect("Failed to parse input")
     }
 
+    // TODO the sizse of the vec should be passed as argument to avoid dynamic resizing
+    pub fn parse_vec<T: std::str::FromStr>(&mut self) -> Vec<T>
+    where
+        T::Err: std::fmt::Debug,
+    {
+        self.next_line()
+            .split_whitespace()
+            .map(|s| s.parse().expect("Failed to parse vec element"))
+            .collect()
+    }
+
     pub fn next_line(&mut self) -> String {
         let mut input = String::new();
         self.reader.read_line(&mut input).expect("Failed read");

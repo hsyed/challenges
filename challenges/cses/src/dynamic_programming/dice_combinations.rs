@@ -1,6 +1,6 @@
+//https://cses.fi/problemset/task/1633
 use std::collections::VecDeque;
 
-//https://cses.fi/problemset/task/1633
 use crate::{Scanner, Writer};
 
 pub fn solve(input: &mut Scanner, out: &mut Writer) {
