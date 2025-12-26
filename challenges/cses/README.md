@@ -2,7 +2,7 @@
 
 Solutions to problems from the [CSES Problem Set](https://cses.fi/problemset/).
 
-Algorithms are implemented manually and refined/optimised with GenAI.
+My objectives are to practise algorithmic thinking and writing efficient Rust. Algorithms are implemented manually and refined/improved with GenAI.
 
 ## Usage
 

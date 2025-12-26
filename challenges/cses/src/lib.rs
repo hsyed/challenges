@@ -1,7 +1,59 @@
 //https://cses.fi/problemset/task/2431
+use std::collections::HashMap;
 use std::io::{BufRead, Write};
 
 pub mod introductory;
+
+pub type SolveFn = fn(&mut Scanner, &mut Writer);
+
+pub struct TaskGroup {
+    category: &'static str,
+    tasks: HashMap<&'static str, SolveFn>,
+}
+
+impl TaskGroup {
+    pub fn new(category: &'static str) -> Self {
+        Self {
+            category,
+            tasks: HashMap::new(),
+        }
+    }
+
+    pub fn add(mut self, name: &'static str, solve_fn: SolveFn) -> Self {
+        self.tasks.insert(name, solve_fn);
+        self
+    }
+
+    pub fn get(&self, name: &str) -> Option<SolveFn> {
+        self.tasks.get(name).copied()
+    }
+
+    pub fn list_tasks(&self) -> Vec<&'static str> {
+        let mut names: Vec<_> = self.tasks.keys().copied().collect();
+        names.sort_unstable();
+        names
+    }
+
+    pub fn category(&self) -> &'static str {
+        self.category
+    }
+
+    pub fn run(&self, problem: &str) {
+        match self.get(problem) {
+            Some(solve_fn) => {
+                testing::run_all_tests(self.category, problem, solve_fn);
+            }
+            None => {
+                eprintln!("Unknown problem: {}", problem);
+                eprintln!("\nAvailable problems in '{}':", self.category);
+                for task_name in self.list_tasks() {
+                    eprintln!("  {}", task_name);
+                }
+                std::process::exit(1);
+            }
+        }
+    }
+}
 
 /// Fast input reader for competitive programming
 pub struct Scanner {
