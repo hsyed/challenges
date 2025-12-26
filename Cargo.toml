@@ -6,6 +6,7 @@ members = [
   "challenges/dns",
   "challenges/memcached",
   "challenges/wc",
+  "challenges/cses",
 ]
 
 
