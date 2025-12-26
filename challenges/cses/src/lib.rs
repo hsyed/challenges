@@ -1,3 +1,4 @@
+//https://cses.fi/problemset/task/2431
 use std::io::{BufRead, Write};
 
 pub mod introductory;
@@ -12,6 +13,13 @@ impl Scanner {
         Self {
             reader: Box::new(reader),
         }
+    }
+
+    pub fn parse<T: std::str::FromStr>(&mut self) -> T
+    where
+        T::Err: std::fmt::Debug,
+    {
+        self.next_line().parse().expect("Failed to parse input")
     }
 
     pub fn next_line(&mut self) -> String {

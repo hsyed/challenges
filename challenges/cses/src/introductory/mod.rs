@@ -6,4 +6,5 @@
 // pub mod missing_number;
 // pub mod repetitions;
 
+pub mod digit_queries;
 pub mod grid_path_description;
