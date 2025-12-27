@@ -151,7 +151,8 @@ match cli.command {
 
 ### 4. Create task files
 
-Add individual tasks as described in "Adding a New Task" above.
+- Add individual tasks as described in "Adding a New Task" above.
+- Do not implement beyond basic parsing if you know the structure of the task
 
 ## Task Structure Convention
 
