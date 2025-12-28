@@ -11,6 +11,7 @@ pub mod grid_path_description;
 pub mod increasing_array;
 pub mod missing_number;
 pub mod repetitions;
+pub mod string_reorder;
 pub mod weird_algorithm;
 
 use crate::TaskGroup;
@@ -22,5 +23,6 @@ pub fn tasks() -> TaskGroup {
         .add("increasing_array", increasing_array::solve)
         .add("missing_number", missing_number::solve)
         .add("repetitions", repetitions::solve)
+        .add("string_reorder", string_reorder::solve)
         .add("weird_algorithm", weird_algorithm::solve)
 }
