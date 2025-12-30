@@ -47,9 +47,9 @@ fn do_solve(m: usize, desc: &[u8]) -> u32 {
     })
 }
 
-// make one cell in the DP table tally[i][cur]
+// make one step in the DP table tally[i][cur]
 #[inline(always)]
-fn step(m: usize, tally: &mut Vec<Vec<u32>>, i: usize, cur: usize) {
+fn step(m: usize, tally: &mut [Vec<u32>], i: usize, cur: usize) {
     tally[i][cur] = (tally[i][cur] + tally[i - 1][cur]) % 1_000_000_007;
     if cur > 1 {
         tally[i][cur] = (tally[i][cur] + tally[i - 1][cur - 1]) % 1_000_000_007;
