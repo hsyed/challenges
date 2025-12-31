@@ -13,6 +13,7 @@ pub mod missing_number;
 pub mod repetitions;
 pub mod string_reorder;
 pub mod weird_algorithm;
+pub mod number_spiral;
 
 use crate::TaskGroup;
 
@@ -25,4 +26,5 @@ pub fn tasks() -> TaskGroup {
         .add("repetitions", repetitions::solve)
         .add("string_reorder", string_reorder::solve)
         .add("weird_algorithm", weird_algorithm::solve)
+        .add("number_spiral", number_spiral::solve)
 }
