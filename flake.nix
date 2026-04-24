@@ -12,7 +12,6 @@
 
   outputs =
     {
-      self,
       nixpkgs,
       rust-overlay,
       flake-utils,
@@ -39,6 +38,9 @@
             pkgs.go
             pkgs.gcc
             pkgs.kcl
+          ]
+          # gpui apps (e.g. conways) need the wayland graphics stack on Linux
+          ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             pkgs.glib
             pkgs.pango
             pkgs.libsoup_3
@@ -50,6 +52,8 @@
 
           env = {
             RUST_BACKTRACE = "1";
+          }
+          // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
               pkgs.wayland
               pkgs.vulkan-loader
