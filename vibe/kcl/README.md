@@ -40,10 +40,10 @@ It demonstrates:
 ## Render examples
 
 ```bash
-XDG_CACHE_HOME=/tmp/kcl-cache HOME=/tmp kcl run environments/dev/acme/main.k -S manifests -o rendered/dev-acme.yaml
-XDG_CACHE_HOME=/tmp/kcl-cache HOME=/tmp kcl run environments/dev/globex/main.k -S manifests -o rendered/dev-globex.yaml
-XDG_CACHE_HOME=/tmp/kcl-cache HOME=/tmp kcl run environments/prod/acme/main.k -S manifests -o rendered/prod-acme.yaml
-XDG_CACHE_HOME=/tmp/kcl-cache HOME=/tmp kcl run environments/prod/globex/main.k -S manifests -o rendered/prod-globex.yaml
+kcl run environments/dev/acme/main.k -S manifests -o rendered/dev-acme.yaml
+kcl run environments/dev/globex/main.k -S manifests -o rendered/dev-globex.yaml
+kcl run environments/prod/acme/main.k -S manifests -o rendered/prod-acme.yaml
+kcl run environments/prod/globex/main.k -S manifests -o rendered/prod-globex.yaml
 ```
 
 ## Enterprise characteristics shown in this PoC
