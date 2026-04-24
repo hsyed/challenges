@@ -36,6 +36,7 @@
             (pkgs.rust-bin.stable.latest.default.override {
               extensions = [ "rust-src" ];
             })
+            pkgs.kcl
             pkgs.glib
             pkgs.pango
             pkgs.libsoup_3

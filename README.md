@@ -1,8 +1,8 @@
-# Rust coding challenges
+# Coding challenges
 
-Just partial solutions to coding challenges. The only goal is to explore the language.
+Just partial solutions to coding challenges and small experiments.
 
 ## Project structure
 
 * The `challenges` folder contains hand-coded solutions to various coding challenges.
-* The `vibe` folder contains various POCS / experiments to learn and explore facets of the Rust ecosystem.
+* The `vibe` folder contains various POCs / experiments.

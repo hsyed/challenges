@@ -1,0 +1,381 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: globex-prod
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant-quota
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+  namespace: globex-prod
+spec:
+  hard:
+    requests.cpu: '16'
+    requests.memory: '32Gi'
+    limits.cpu: '32'
+    limits.memory: '64Gi'
+    pods: '100'
+    services: '20'
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: tenant-default-limits
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+  namespace: globex-prod
+spec:
+  limits:
+  - type: Container
+    default:
+      cpu: '1000m'
+      memory: '1Gi'
+    defaultRequest:
+      cpu: '500m'
+      memory: '512Mi'
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-default-deny
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+  namespace: globex-prod
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-system
+  egress:
+  - to:
+    - namespaceSelector: {}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: analytics-api-sa
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+    app.kubernetes.io/name: analytics-api
+  namespace: globex-prod
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: analytics-api-config
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+    app.kubernetes.io/name: analytics-api
+  namespace: globex-prod
+data:
+  TENANT: globex
+  ENVIRONMENT: prod
+  APP_NAME: analytics-api
+  LOG_LEVEL: warn
+  CACHE_MODE: redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-api
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+    app.kubernetes.io/name: analytics-api
+  namespace: globex-prod
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: analytics-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/managed-by: kcl
+        platform.example.com/tenant: globex
+        platform.example.com/environment: prod
+        platform.example.com/owner: analytics-team
+        platform.example.com/cost-center: cc-2040
+        app.kubernetes.io/name: analytics-api
+    spec:
+      serviceAccountName: analytics-api-sa
+      containers:
+      - name: analytics-api
+        image: ghcr.io/example/analytics-api:3.2.0
+        ports:
+        - containerPort: 8090
+        env:
+        - name: TENANT
+          value: globex
+        - name: ENVIRONMENT
+          value: prod
+        - name: APP_NAME
+          value: analytics-api
+        - name: LOG_LEVEL
+          value: warn
+        - name: CACHE_MODE
+          value: redis
+        resources:
+          requests:
+            cpu: '1500m'
+            memory: '2Gi'
+          limits:
+            cpu: '3000m'
+            memory: '4Gi'
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-api
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+    app.kubernetes.io/name: analytics-api
+  namespace: globex-prod
+spec:
+  selector:
+    app.kubernetes.io/name: analytics-api
+  ports:
+  - port: 80
+    targetPort: 8090
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: analytics-api-ingress
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+    app.kubernetes.io/name: analytics-api
+  namespace: globex-prod
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: analytics.globex.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: analytics-api
+            port:
+              number: 80
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: analytics-api-pdb
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+    app.kubernetes.io/name: analytics-api
+  namespace: globex-prod
+spec:
+  minAvailable: '67%'
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: analytics-api
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: reporting-ui-sa
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+    app.kubernetes.io/name: reporting-ui
+  namespace: globex-prod
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reporting-ui-config
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+    app.kubernetes.io/name: reporting-ui
+  namespace: globex-prod
+data:
+  TENANT: globex
+  ENVIRONMENT: prod
+  APP_NAME: reporting-ui
+  API_BASE_URL: https://analytics.globex.example.com
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reporting-ui
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+    app.kubernetes.io/name: reporting-ui
+  namespace: globex-prod
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: reporting-ui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/managed-by: kcl
+        platform.example.com/tenant: globex
+        platform.example.com/environment: prod
+        platform.example.com/owner: analytics-team
+        platform.example.com/cost-center: cc-2040
+        app.kubernetes.io/name: reporting-ui
+    spec:
+      serviceAccountName: reporting-ui-sa
+      containers:
+      - name: reporting-ui
+        image: ghcr.io/example/reporting-ui:3.2.0
+        ports:
+        - containerPort: 3000
+        env:
+        - name: TENANT
+          value: globex
+        - name: ENVIRONMENT
+          value: prod
+        - name: APP_NAME
+          value: reporting-ui
+        - name: API_BASE_URL
+          value: https://analytics.globex.example.com
+        resources:
+          requests:
+            cpu: '500m'
+            memory: '512Mi'
+          limits:
+            cpu: '1000m'
+            memory: '1Gi'
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reporting-ui
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+    app.kubernetes.io/name: reporting-ui
+  namespace: globex-prod
+spec:
+  selector:
+    app.kubernetes.io/name: reporting-ui
+  ports:
+  - port: 80
+    targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: reporting-ui-ingress
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+    app.kubernetes.io/name: reporting-ui
+  namespace: globex-prod
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: reports.globex.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: reporting-ui
+            port:
+              number: 80
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: reporting-ui-pdb
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: globex
+    platform.example.com/environment: prod
+    platform.example.com/owner: analytics-team
+    platform.example.com/cost-center: cc-2040
+    app.kubernetes.io/name: reporting-ui
+  namespace: globex-prod
+spec:
+  minAvailable: '67%'
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: reporting-ui

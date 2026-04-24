@@ -1,0 +1,381 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: acme-dev
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant-quota
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+  namespace: acme-dev
+spec:
+  hard:
+    requests.cpu: '4'
+    requests.memory: '8Gi'
+    limits.cpu: '8'
+    limits.memory: '16Gi'
+    pods: '100'
+    services: '20'
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: tenant-default-limits
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+  namespace: acme-dev
+spec:
+  limits:
+  - type: Container
+    default:
+      cpu: '500m'
+      memory: '512Mi'
+    defaultRequest:
+      cpu: '200m'
+      memory: '256Mi'
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-default-deny
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+  namespace: acme-dev
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-system
+  egress:
+  - to:
+    - namespaceSelector: {}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: billing-api-sa
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+    app.kubernetes.io/name: billing-api
+  namespace: acme-dev
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: billing-api-config
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+    app.kubernetes.io/name: billing-api
+  namespace: acme-dev
+data:
+  TENANT: acme
+  ENVIRONMENT: dev
+  APP_NAME: billing-api
+  LOG_LEVEL: debug
+  FEATURE_FLAG_NEW_CHECKOUT: 'true'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-api
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+    app.kubernetes.io/name: billing-api
+  namespace: acme-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: billing-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/managed-by: kcl
+        platform.example.com/tenant: acme
+        platform.example.com/environment: dev
+        platform.example.com/owner: payments-team
+        platform.example.com/cost-center: cc-1001
+        app.kubernetes.io/name: billing-api
+    spec:
+      serviceAccountName: billing-api-sa
+      containers:
+      - name: billing-api
+        image: ghcr.io/example/billing-api:1.4.2
+        ports:
+        - containerPort: 8080
+        env:
+        - name: TENANT
+          value: acme
+        - name: ENVIRONMENT
+          value: dev
+        - name: APP_NAME
+          value: billing-api
+        - name: LOG_LEVEL
+          value: debug
+        - name: FEATURE_FLAG_NEW_CHECKOUT
+          value: 'true'
+        resources:
+          requests:
+            cpu: '200m'
+            memory: '256Mi'
+          limits:
+            cpu: '500m'
+            memory: '512Mi'
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: billing-api
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+    app.kubernetes.io/name: billing-api
+  namespace: acme-dev
+spec:
+  selector:
+    app.kubernetes.io/name: billing-api
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: billing-api-ingress
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+    app.kubernetes.io/name: billing-api
+  namespace: acme-dev
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: billing.dev.acme.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: billing-api
+            port:
+              number: 80
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: billing-api-pdb
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+    app.kubernetes.io/name: billing-api
+  namespace: acme-dev
+spec:
+  minAvailable: '50%'
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: billing-api
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: billing-worker-sa
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+    app.kubernetes.io/name: billing-worker
+  namespace: acme-dev
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: billing-worker-config
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+    app.kubernetes.io/name: billing-worker
+  namespace: acme-dev
+data:
+  TENANT: acme
+  ENVIRONMENT: dev
+  APP_NAME: billing-worker
+  QUEUE_NAME: billing-dev
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-worker
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+    app.kubernetes.io/name: billing-worker
+  namespace: acme-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: billing-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/managed-by: kcl
+        platform.example.com/tenant: acme
+        platform.example.com/environment: dev
+        platform.example.com/owner: payments-team
+        platform.example.com/cost-center: cc-1001
+        app.kubernetes.io/name: billing-worker
+    spec:
+      serviceAccountName: billing-worker-sa
+      containers:
+      - name: billing-worker
+        image: ghcr.io/example/billing-worker:1.4.2
+        ports:
+        - containerPort: 8081
+        env:
+        - name: TENANT
+          value: acme
+        - name: ENVIRONMENT
+          value: dev
+        - name: APP_NAME
+          value: billing-worker
+        - name: QUEUE_NAME
+          value: billing-dev
+        resources:
+          requests:
+            cpu: '200m'
+            memory: '256Mi'
+          limits:
+            cpu: '500m'
+            memory: '512Mi'
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: billing-worker
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+    app.kubernetes.io/name: billing-worker
+  namespace: acme-dev
+spec:
+  selector:
+    app.kubernetes.io/name: billing-worker
+  ports:
+  - port: 80
+    targetPort: 8081
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: billing-worker-ingress
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+    app.kubernetes.io/name: billing-worker
+  namespace: acme-dev
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: worker.dev.acme.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: billing-worker
+            port:
+              number: 80
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: billing-worker-pdb
+  labels:
+    app.kubernetes.io/managed-by: kcl
+    platform.example.com/tenant: acme
+    platform.example.com/environment: dev
+    platform.example.com/owner: payments-team
+    platform.example.com/cost-center: cc-1001
+    app.kubernetes.io/name: billing-worker
+  namespace: acme-dev
+spec:
+  minAvailable: '50%'
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: billing-worker
